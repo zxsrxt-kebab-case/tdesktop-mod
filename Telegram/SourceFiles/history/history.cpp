@@ -3931,6 +3931,14 @@ void History::forumTabsChanged(bool forumTabs) {
 	}
 }
 
+void History::refreshMessageTimeTexts() {
+	for (auto &block : blocks) {
+		for (auto &view : block->messages) {
+			view->itemDataChanged();
+		}
+	}
+}
+
 not_null<History*> History::migrateToOrMe() const {
 	if (const auto to = peer->migrateTo()) {
 		return owner().history(to);

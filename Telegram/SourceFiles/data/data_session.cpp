@@ -290,6 +290,11 @@ Session::Session(not_null<Main::Session*> session)
 		notifyUnreadBadgeChanged();
 	}, _lifetime);
 
+	Core::App().settings().messageTimeSecondsChanges(
+	) | rpl::on_next([=] {
+		refreshMessageTimeTexts();
+	}, _lifetime);
+
 	base::options::lookup<bool>(
 		Dialogs::kOptionDialogsUnreadOnTop
 	).changes() | rpl::on_next([=] {
@@ -1599,6 +1604,10 @@ not_null<History*> Session::history(not_null<const PeerData*> peer) {
 
 History *Session::historyLoaded(const PeerData *peer) {
 	return peer ? historyLoaded(peer->id) : nullptr;
+}
+
+void Session::refreshMessageTimeTexts() {
+	_histories->refreshMessageTimeTexts();
 }
 
 void Session::deleteConversationLocally(not_null<PeerData*> peer) {
