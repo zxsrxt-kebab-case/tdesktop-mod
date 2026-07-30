@@ -91,8 +91,12 @@ public:
 	// encrypted blob under a fixed name, like the mtp data and the session
 	// settings are - deliberately not registered in the key map, so that the
 	// index to all the other account data is left untouched.
-	void writeMessageVersions(const QByteArray &serialized);
-	[[nodiscard]] QByteArray readMessageVersions();
+	// Message versions live in an append-only file: one encrypted record per
+	// captured version, so saving costs the same no matter how much has
+	// piled up. rewriteMessageVersions() compacts it.
+	void appendMessageVersion(const QByteArray &record);
+	[[nodiscard]] std::vector<QByteArray> readMessageVersionRecords();
+	void rewriteMessageVersions(const std::vector<QByteArray> &records);
 
 	void registerDraftSource(
 		not_null<History*> history,

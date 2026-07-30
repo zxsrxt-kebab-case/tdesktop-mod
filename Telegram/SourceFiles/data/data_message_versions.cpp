@@ -22,14 +22,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace Data {
 namespace {
 
-constexpr auto kSaveDelay = crl::time(5000);
-constexpr auto kSerializeVersion = qint32(1);
+constexpr auto kRecordVersion = qint32(2);
 
-// A single blob is rewritten whole on every save, so it has to stay small
-// enough that saving is cheap. Oldest entries are dropped past these.
-constexpr auto kMaxMessages = 20000;
-constexpr auto kMaxVersionsPerMessage = 32;
-constexpr auto kMaxApproximateBytes = 32 * 1024 * 1024;
+constexpr auto kMaxMessages = 200000;
+constexpr auto kMaxVersionsPerMessage = 64;
+constexpr auto kMaxApproximateBytes = 256 * 1024 * 1024;
+
+// Rewrite the file once it holds this much more than is still live.
+constexpr auto kCompactExtraRecords = 512;
+constexpr auto kCompactRatio = 2;
 
 [[nodiscard]] int ApproximateSize(const MessageVersion &version) {
 	return sizeof(MessageVersion)
@@ -40,16 +41,10 @@ constexpr auto kMaxApproximateBytes = 32 * 1024 * 1024;
 } // namespace
 
 MessageVersions::MessageVersions(not_null<Session*> owner)
-: _owner(owner)
-, _saveTimer([=] { save(); }) {
+: _owner(owner) {
 }
 
-MessageVersions::~MessageVersions() {
-	if (_saveTimer.isActive()) {
-		_saveTimer.cancel();
-		save();
-	}
-}
+MessageVersions::~MessageVersions() = default;
 
 void MessageVersions::captureBeforeEdit(not_null<HistoryItem*> item) {
 	capture(item, false);
@@ -71,7 +66,8 @@ void MessageVersions::capture(not_null<HistoryItem*> item, bool deleted) {
 		// files live in the cache and are not ours to duplicate.
 		return;
 	}
-	auto &list = _versions[item->fullId()];
+	const auto id = item->fullId();
+	auto &list = _versions[id];
 	const auto tags = TextUtilities::SerializeTags(
 		TextUtilities::ConvertEntitiesToTextTags(original.entities));
 	if (!list.empty()
@@ -82,6 +78,7 @@ void MessageVersions::capture(not_null<HistoryItem*> item, bool deleted) {
 	}
 	auto version = MessageVersion{
 		.authorId = item->from()->id,
+		.originalDate = item->date(),
 		.capturedAt = base::unixtime::now(),
 		.text = original.text,
 		.tags = tags,
@@ -89,17 +86,26 @@ void MessageVersions::capture(not_null<HistoryItem*> item, bool deleted) {
 	};
 	DEBUG_LOG(("MessageVersions: captured %1 for %2_%3, versions now %4."
 		).arg(deleted ? "delete" : "edit"
-		).arg(item->fullId().peer.value
-		).arg(item->fullId().msg.bare
+		).arg(id.peer.value
+		).arg(id.msg.bare
 		).arg(list.size() + 1));
+
+	// Appended before the in-memory trimming below, so that what is on disk
+	// and what is in memory agree on this version existing.
+	_owner->session().local().appendMessageVersion(
+		serializeRecord(id, version));
+	++_fileRecords;
+	++_liveRecords;
+
 	_approximateBytes += ApproximateSize(version);
 	list.push_back(std::move(version));
 	while (list.size() > kMaxVersionsPerMessage) {
 		_approximateBytes -= ApproximateSize(list.front());
 		list.erase(list.begin());
+		--_liveRecords;
 	}
 	enforceLimits();
-	scheduleSave();
+	compactIfNeeded();
 }
 
 void MessageVersions::enforceLimits() {
@@ -122,12 +128,35 @@ void MessageVersions::enforceLimits() {
 		}
 		for (const auto &version : oldest->second) {
 			_approximateBytes -= ApproximateSize(version);
+			--_liveRecords;
 		}
 		_versions.erase(oldest);
 	}
 	if (_approximateBytes < 0) {
 		_approximateBytes = 0;
 	}
+	if (_liveRecords < 0) {
+		_liveRecords = 0;
+	}
+}
+
+void MessageVersions::compactIfNeeded() {
+	if (_fileRecords <= (_liveRecords * kCompactRatio) + kCompactExtraRecords) {
+		return;
+	}
+	auto records = std::vector<QByteArray>();
+	records.reserve(_liveRecords);
+	for (const auto &[id, list] : _versions) {
+		for (const auto &version : list) {
+			records.push_back(serializeRecord(id, version));
+		}
+	}
+	DEBUG_LOG(("MessageVersions: compacting %1 records down to %2."
+		).arg(_fileRecords
+		).arg(records.size()));
+	_owner->session().local().rewriteMessageVersions(records);
+	_fileRecords = int(records.size());
+	_liveRecords = _fileRecords;
 }
 
 const std::vector<MessageVersion> *MessageVersions::lookup(FullMsgId id) {
@@ -136,11 +165,6 @@ const std::vector<MessageVersion> *MessageVersions::lookup(FullMsgId id) {
 	load();
 
 	const auto i = _versions.find(id);
-	DEBUG_LOG(("MessageVersions: lookup %1_%2, loaded %3 messages, found %4."
-		).arg(id.peer.value
-		).arg(id.msg.bare
-		).arg(_versions.size()
-		).arg((i != _versions.end() && !i->second.empty()) ? 1 : 0));
 	return (i != _versions.end() && !i->second.empty())
 		? &i->second
 		: nullptr;
@@ -158,18 +182,59 @@ bool MessageVersions::locallyDeleted(FullMsgId id) const {
 	return _locallyDeleted.contains(id);
 }
 
+void MessageVersions::restoreInto(not_null<History*> history) {
+	const auto peerId = history->peer->id;
+	if (_restoredHistories.contains(peerId)) {
+		return;
+	}
+	load();
+	_restoredHistories.emplace(peerId);
+
+	const auto owner = &history->owner();
+	const auto selfId = history->session().userPeerId();
+	for (const auto &[id, list] : _versions) {
+		if (id.peer != peerId || list.empty()) {
+			continue;
+		}
+		const auto &version = list.back();
+		if (!version.deleted || owner->message(id)) {
+			// Either it was only ever edited, or the server still has it.
+			continue;
+		}
+		auto text = TextWithEntities{
+			version.text,
+			TextUtilities::ConvertTextTagsToEntities(
+				TextUtilities::DeserializeTags(
+					version.tags,
+					version.text.size())),
+		};
+		const auto item = history->addNewLocalMessage({
+			.id = owner->nextLocalMessageId(),
+			.flags = (MessageFlag::HistoryEntry
+				| ((version.authorId == selfId)
+					? MessageFlag::Outgoing
+					: MessageFlag())
+				| (version.authorId
+					? MessageFlag::HasFromId
+					: MessageFlag())),
+			.from = version.authorId,
+			.date = version.originalDate,
+		}, text, MTP_messageMediaEmpty());
+
+		// The recreated item has a new local id, so the badge has to follow.
+		markLocallyDeleted(item->fullId());
+	}
+}
+
 void MessageVersions::clear() {
 	_versions.clear();
 	_locallyDeleted.clear();
+	_restoredHistories.clear();
 	_approximateBytes = 0;
+	_fileRecords = 0;
+	_liveRecords = 0;
 	_loaded = true;
-	scheduleSave();
-}
-
-void MessageVersions::scheduleSave() {
-	if (!_saveTimer.isActive()) {
-		_saveTimer.callOnce(kSaveDelay);
-	}
+	_owner->session().local().rewriteMessageVersions({});
 }
 
 void MessageVersions::load() {
@@ -177,112 +242,88 @@ void MessageVersions::load() {
 		return;
 	}
 	_loaded = true;
-	const auto data = _owner->session().local().readMessageVersions();
-	deserialize(data);
-	DEBUG_LOG(("MessageVersions: loaded %1 bytes, %2 messages."
-		).arg(data.size()
-		).arg(_versions.size()));
-}
 
-void MessageVersions::save() {
-	if (!_loaded) {
-		return;
+	const auto records = _owner->session().local().readMessageVersionRecords();
+	_fileRecords = int(records.size());
+	for (const auto &record : records) {
+		if (!applyRecord(record)) {
+			LOG(("App Error: Bad message version record, stopping."));
+			break;
+		}
 	}
-	_owner->session().local().writeMessageVersions(serialize());
+	DEBUG_LOG(("MessageVersions: loaded %1 records, %2 messages."
+		).arg(_fileRecords
+		).arg(_versions.size()));
+	enforceLimits();
+	compactIfNeeded();
 }
 
-QByteArray MessageVersions::serialize() const {
+QByteArray MessageVersions::serializeRecord(
+		FullMsgId id,
+		const MessageVersion &version) const {
 	auto result = QByteArray();
 	auto buffer = QBuffer(&result);
 	buffer.open(QIODevice::WriteOnly);
 	auto stream = QDataStream(&buffer);
 	stream.setVersion(QDataStream::Qt_5_1);
 
-	stream << kSerializeVersion << qint32(_versions.size());
-	for (const auto &[id, list] : _versions) {
-		stream
-			<< quint64(id.peer.value)
-			<< qint32(id.msg.bare)
-			<< qint32(list.size());
-		for (const auto &version : list) {
-			stream
-				<< quint64(version.authorId.value)
-				<< qint32(version.capturedAt)
-				<< version.text
-				<< version.tags
-				<< qint32(version.deleted ? 1 : 0);
-		}
-	}
+	stream
+		<< kRecordVersion
+		<< quint64(id.peer.value)
+		<< qint64(id.msg.bare)
+		<< quint64(version.authorId.value)
+		<< qint32(version.originalDate)
+		<< qint32(version.capturedAt)
+		<< version.text
+		<< version.tags
+		<< qint32(version.deleted ? 1 : 0);
 	buffer.close();
 	return result;
 }
 
-void MessageVersions::deserialize(const QByteArray &data) {
-	_versions.clear();
-	_approximateBytes = 0;
-	if (data.isEmpty()) {
-		return;
-	}
+bool MessageVersions::applyRecord(const QByteArray &record) {
 	auto buffer = QBuffer();
-	buffer.setData(data);
+	buffer.setData(record);
 	buffer.open(QIODevice::ReadOnly);
 	auto stream = QDataStream(&buffer);
 	stream.setVersion(QDataStream::Qt_5_1);
 
 	auto version = qint32();
-	auto count = qint32();
-	stream >> version >> count;
-	if (stream.status() != QDataStream::Ok
-		|| version != kSerializeVersion
-		|| count < 0
-		|| count > kMaxMessages) {
-		LOG(("App Error: Bad message versions data."));
-		return;
+	auto peerId = quint64();
+	auto msgId = qint64();
+	auto authorId = quint64();
+	auto originalDate = qint32();
+	auto capturedAt = qint32();
+	auto entry = MessageVersion();
+	auto deleted = qint32();
+	stream
+		>> version
+		>> peerId
+		>> msgId
+		>> authorId
+		>> originalDate
+		>> capturedAt
+		>> entry.text
+		>> entry.tags
+		>> deleted;
+	if (stream.status() != QDataStream::Ok || version != kRecordVersion) {
+		return false;
 	}
-	for (auto i = 0; i != count; ++i) {
-		auto peerId = quint64();
-		auto msgId = qint32();
-		auto versionsCount = qint32();
-		stream >> peerId >> msgId >> versionsCount;
-		if (stream.status() != QDataStream::Ok
-			|| versionsCount < 0
-			|| versionsCount > kMaxVersionsPerMessage) {
-			LOG(("App Error: Bad message versions entry."));
-			_versions.clear();
-			_approximateBytes = 0;
-			return;
-		}
-		auto list = std::vector<MessageVersion>();
-		list.reserve(versionsCount);
-		for (auto j = 0; j != versionsCount; ++j) {
-			auto entry = MessageVersion();
-			auto authorId = quint64();
-			auto capturedAt = qint32();
-			auto deleted = qint32();
-			stream
-				>> authorId
-				>> capturedAt
-				>> entry.text
-				>> entry.tags
-				>> deleted;
-			if (stream.status() != QDataStream::Ok) {
-				LOG(("App Error: Bad message version."));
-				_versions.clear();
-				_approximateBytes = 0;
-				return;
-			}
-			entry.authorId = PeerId(authorId);
-			entry.capturedAt = capturedAt;
-			entry.deleted = (deleted == 1);
-			_approximateBytes += ApproximateSize(entry);
-			list.push_back(std::move(entry));
-		}
-		if (!list.empty()) {
-			_versions.emplace(
-				FullMsgId(PeerId(peerId), MsgId(msgId)),
-				std::move(list));
-		}
+	entry.authorId = PeerId(authorId);
+	entry.originalDate = originalDate;
+	entry.capturedAt = capturedAt;
+	entry.deleted = (deleted == 1);
+
+	_approximateBytes += ApproximateSize(entry);
+	++_liveRecords;
+	auto &list = _versions[FullMsgId(PeerId(peerId), MsgId(msgId))];
+	list.push_back(std::move(entry));
+	while (list.size() > kMaxVersionsPerMessage) {
+		_approximateBytes -= ApproximateSize(list.front());
+		list.erase(list.begin());
+		--_liveRecords;
 	}
+	return true;
 }
 
 } // namespace Data

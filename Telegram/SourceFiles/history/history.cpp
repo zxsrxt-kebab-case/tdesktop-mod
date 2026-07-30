@@ -78,6 +78,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "payments/payments_checkout_process.h"
 #include "core/crash_reports.h"
 #include "core/application.h"
+#include "data/data_message_versions.h"
+#include "core/core_settings.h"
 #include "base/unixtime.h"
 #include "base/qt/qt_common_adapters.h"
 #include "styles/style_dialogs.h"
@@ -4161,6 +4163,11 @@ void History::insertMessageToBlocks(not_null<HistoryItem*> item) {
 }
 
 void History::checkLocalMessages() {
+	if (Core::App().settings().saveMessageVersions()) {
+		// Recreates locally kept deleted messages; they are client-side
+		// items, so the loop below then places them by date.
+		owner().messageVersions().restoreInto(this);
+	}
 	if (isEmpty() && (!loadedAtTop() || !loadedAtBottom())) {
 		return;
 	}

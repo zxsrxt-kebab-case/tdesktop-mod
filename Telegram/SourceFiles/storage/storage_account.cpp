@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "storage/storage_account.h"
 
+#include <QtCore/QSaveFile>
+
 #include "storage/localstorage.h"
 #include "storage/storage_domain.h"
 #include "storage/storage_encryption.h"
@@ -1146,33 +1148,108 @@ std::unique_ptr<Main::SessionSettings> Account::applyReadContext(
 	return std::move(context.sessionSettingsStorage);
 }
 
-void Account::writeMessageVersions(const QByteArray &serialized) {
-	Expects(_localKey != nullptr);
+namespace {
 
-	const auto size = sizeof(quint32) + Serialize::bytearraySize(serialized);
+constexpr auto kMessageVersionsMagic = quint32(0x4D565231); // "MVR1"
+constexpr auto kMessageVersionsMaxRecord = 4 * 1024 * 1024;
 
-	FileWriteDescriptor file(u"msgversions"_q, _basePath);
-	EncryptedDescriptor data(size);
-	data.stream << quint32(1) << serialized; // Version tag, then the payload.
-	file.writeEncrypted(data, _localKey);
+[[nodiscard]] QString MessageVersionsPath(const QString &basePath) {
+	return basePath + u"msgversions"_q;
 }
 
-QByteArray Account::readMessageVersions() {
+} // namespace
+
+void Account::appendMessageVersion(const QByteArray &record) {
+	Expects(_localKey != nullptr);
+
+	const auto path = MessageVersionsPath(_basePath);
+	const auto existed = QFile::exists(path);
+	auto file = QFile(path);
+	if (!file.open(QIODevice::Append)) {
+		LOG(("App Error: Could not open '%1' for append.").arg(path));
+		return;
+	}
+	auto stream = QDataStream(&file);
+	stream.setVersion(QDataStream::Qt_5_1);
+	if (!existed || !file.size()) {
+		stream << kMessageVersionsMagic;
+	}
+	auto data = EncryptedDescriptor(
+		sizeof(quint32) + Serialize::bytearraySize(record));
+	data.stream << record;
+	stream << PrepareEncrypted(data, _localKey);
+}
+
+std::vector<QByteArray> Account::readMessageVersionRecords() {
 	if (!_localKey) {
 		return {};
 	}
-	FileReadDescriptor file;
-	if (!ReadEncryptedFile(file, u"msgversions"_q, _basePath, _localKey)) {
+	auto file = QFile(MessageVersionsPath(_basePath));
+	if (!file.open(QIODevice::ReadOnly)) {
 		return {};
 	}
-	auto version = quint32();
-	auto serialized = QByteArray();
-	file.stream >> version >> serialized;
-	if (!CheckStreamStatus(file.stream) || version != 1) {
-		LOG(("App Error: Bad message versions file."));
+	auto stream = QDataStream(&file);
+	stream.setVersion(QDataStream::Qt_5_1);
+
+	auto magic = quint32();
+	stream >> magic;
+	if (stream.status() != QDataStream::Ok
+		|| magic != kMessageVersionsMagic) {
+		LOG(("App Error: Bad message versions file header."));
 		return {};
 	}
-	return serialized;
+	auto result = std::vector<QByteArray>();
+	while (!stream.atEnd()) {
+		auto encrypted = QByteArray();
+		stream >> encrypted;
+		if (stream.status() != QDataStream::Ok
+			|| encrypted.size() > kMessageVersionsMaxRecord) {
+			// A half-written tail is expected if the app was killed mid
+			// append; keep what was read so far and drop the rest.
+			LOG(("App Info: Message versions file ends with a partial "
+				"record, %1 read.").arg(result.size()));
+			break;
+		}
+		auto data = EncryptedDescriptor();
+		if (!DecryptLocal(data, encrypted, _localKey)) {
+			LOG(("App Error: Could not decrypt a message version."));
+			break;
+		}
+		auto record = QByteArray();
+		data.stream >> record;
+		if (!CheckStreamStatus(data.stream)) {
+			break;
+		}
+		result.push_back(std::move(record));
+	}
+	return result;
+}
+
+void Account::rewriteMessageVersions(const std::vector<QByteArray> &records) {
+	Expects(_localKey != nullptr);
+
+	const auto path = MessageVersionsPath(_basePath);
+	if (records.empty()) {
+		QFile::remove(path);
+		return;
+	}
+	auto save = QSaveFile(path);
+	if (!save.open(QIODevice::WriteOnly)) {
+		LOG(("App Error: Could not open '%1' for writing.").arg(path));
+		return;
+	}
+	auto stream = QDataStream(&save);
+	stream.setVersion(QDataStream::Qt_5_1);
+	stream << kMessageVersionsMagic;
+	for (const auto &record : records) {
+		auto data = EncryptedDescriptor(
+			sizeof(quint32) + Serialize::bytearraySize(record));
+		data.stream << record;
+		stream << PrepareEncrypted(data, _localKey);
+	}
+	if (!save.commit()) {
+		LOG(("App Error: Could not commit '%1'.").arg(path));
+	}
 }
 
 void Account::writeMtpData() {

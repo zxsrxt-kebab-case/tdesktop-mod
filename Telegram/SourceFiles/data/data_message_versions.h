@@ -7,11 +7,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "base/timer.h"
 #include "base/flat_map.h"
 #include "base/flat_set.h"
 
 class HistoryItem;
+class History;
 
 namespace Main {
 class Session;
@@ -25,6 +25,7 @@ class Session;
 // what it said before it was deleted.
 struct MessageVersion {
 	PeerId authorId = 0;
+	TimeId originalDate = 0; // Of the message, for placing it in the list.
 	TimeId capturedAt = 0;
 	QString text;
 	QByteArray tags; // Formatting, serialized the way drafts store it.
@@ -34,9 +35,10 @@ struct MessageVersion {
 // Keeps local copies of messages that were edited or deleted, so that the
 // earlier text does not disappear along with the server's copy.
 //
-// Everything lives in one encrypted blob written through Storage::Account,
-// under the same local key as the rest of the account data - it is not a
-// separate plaintext database.
+// Records are appended to one encrypted file, under the same local key as
+// the rest of the account data - it is not a separate plaintext database.
+// Appending costs the same whatever has piled up; the file is compacted
+// when it holds noticeably more records than are still live.
 class MessageVersions final {
 public:
 	explicit MessageVersions(not_null<Session*> owner);
@@ -53,23 +55,31 @@ public:
 	void markLocallyDeleted(FullMsgId id);
 	[[nodiscard]] bool locallyDeleted(FullMsgId id) const;
 
+	// Recreates messages the server deleted as local ones, so that they come
+	// back after a restart. tdesktop keeps no local copy of the history, so
+	// without this they are gone as soon as it is refetched.
+	void restoreInto(not_null<History*> history);
+
 	void clear();
 
 private:
 	void load();
-	void save();
-	void scheduleSave();
 	void capture(not_null<HistoryItem*> item, bool deleted);
 	void enforceLimits();
+	void compactIfNeeded();
 
-	[[nodiscard]] QByteArray serialize() const;
-	void deserialize(const QByteArray &data);
+	[[nodiscard]] QByteArray serializeRecord(
+		FullMsgId id,
+		const MessageVersion &version) const;
+	[[nodiscard]] bool applyRecord(const QByteArray &record);
 
 	const not_null<Session*> _owner;
 	base::flat_map<FullMsgId, std::vector<MessageVersion>> _versions;
 	base::flat_set<FullMsgId> _locallyDeleted;
-	base::Timer _saveTimer;
+	base::flat_set<PeerId> _restoredHistories;
 	int _approximateBytes = 0;
+	int _fileRecords = 0; // Including ones no longer live, for compaction.
+	int _liveRecords = 0;
 	bool _loaded = false;
 
 };
