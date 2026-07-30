@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "chat_helpers/bot_command.h"
 #include "core/application.h"
+#include "core/data_directory.h"
 #include "core/local_url_handlers.h"
 #include "core/file_utilities.h"
 #include "mainwidget.h"
@@ -169,7 +170,7 @@ void ExportToCalendar(TimeId date, const QString &messageText) {
 			.arg(summary)
 			.arg(description)
 			.arg(uid, 0, 16);
-	const auto dir = cWorkingDir() + u"tdata/temp"_q;
+	const auto dir = Core::DataPath(u"temp"_q);
 	QDir().mkpath(dir);
 	const auto path = u"%1/event_%2.ics"_q
 		.arg(dir)

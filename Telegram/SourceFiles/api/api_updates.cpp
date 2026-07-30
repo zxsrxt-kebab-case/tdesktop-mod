@@ -60,6 +60,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history_streamed_drafts.h"
 #include "history/history_unread_things.h"
 #include "core/application.h"
+#include "core/core_settings.h"
 #include "storage/storage_account.h"
 #include "storage/storage_facade.h"
 #include "storage/storage_user_photos.h"
@@ -994,7 +995,8 @@ void Updates::updateOnline(crl::time lastNonIdleTime, bool gotOtherOffline) {
 	});
 
 	const auto &config = _session->serverConfig();
-	bool isOnline = Core::App().hasActiveWindow(&session());
+	bool isOnline = Core::App().hasActiveWindow(&session())
+		&& !Core::App().settings().ghostMode();
 	int updateIn = config.onlineUpdatePeriod;
 	Assert(updateIn >= 0);
 	if (isOnline) {

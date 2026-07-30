@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "api/api_send_progress.h"
 
+#include "core/application.h"
+#include "core/core_settings.h"
 #include "main/main_session.h"
 #include "history/history.h"
 #include "data/data_peer.h"
@@ -110,6 +112,10 @@ bool SendProgressManager::updated(const Key &key, bool doing) {
 
 void SendProgressManager::send(const Key &key, int progress) {
 	if (skipRequest(key)) {
+		return;
+	} else if (Core::App().settings().ghostMode()) {
+		// "typing", "recording voice", upload progress - all of it tells the
+		// other side that we are here, so ghost mode sends none of it.
 		return;
 	}
 	using Type = SendProgressType;

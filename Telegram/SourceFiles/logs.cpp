@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "platform/platform_specific.h"
 #include "core/crash_reports.h"
+#include "core/data_directory.h"
 #include "core/launcher.h"
 #include "core/version.h"
 #include "mtproto/facade.h"
@@ -303,8 +304,8 @@ bool DebugModeEnabled = false;
 				bool tdataGood = true;
 				if (tdataConfig.exists()) {
 					tdataGood = false;
-					QDir().mkpath(cWorkingDir() + "tdata");
-					if (tdataConfig.copy(cWorkingDir() + "tdata/config")) {
+					QDir().mkpath(Core::DataPath());
+					if (tdataConfig.copy(Core::DataPath(u"config"_q))) {
 						LOG(("Copied 'tdata/config' to home dir"));
 						tdataGood = true;
 					} else {
@@ -382,7 +383,9 @@ void start() {
 	QDir::setCurrent(cWorkingDir());
 #endif // !Q_OS_WINRT
 
-	QDir().mkpath(cWorkingDir() + u"tdata"_q);
+	// Resolves the (randomly named) data directory, renaming a legacy
+	// 'tdata' if it is still there. Everything below expects it to be ready.
+	Core::InitDataDirectory();
 
 	launcher.workingFolderReady();
 	CrashReports::StartCatching();

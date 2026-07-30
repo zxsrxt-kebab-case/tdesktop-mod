@@ -98,18 +98,33 @@ PasscodeLockWidget::PasscodeLockWidget(
 	QWidget *parent,
 	not_null<Controller*> window)
 : LockWidget(parent, window)
-, _passcode(this, st::passcodeInput, tr::lng_passcode_ph())
-, _submit(this, tr::lng_passcode_submit(), st::passcodeSubmit)
+, _setup(Core::App().passcodeSetupRequired())
+, _passcode(this, st::passcodeInput, (_setup
+	? tr::lng_passcode_enter_first()
+	: tr::lng_passcode_ph()))
+, _reenter(_setup
+	? object_ptr<Ui::PasswordInput>(
+		this,
+		st::passcodeInput,
+		tr::lng_passcode_confirm_new())
+	: object_ptr<Ui::PasswordInput>(nullptr))
+, _submit(this, (_setup
+	? tr::lng_passcode_create_button()
+	: tr::lng_passcode_submit()), st::passcodeSubmit)
 , _logout(this, tr::lng_passcode_logout(tr::now)) {
 	connect(_passcode, &Ui::MaskedInputField::changed, [=] { changed(); });
 	connect(_passcode, &Ui::MaskedInputField::submitted, [=] { submit(); });
+	if (_reenter) {
+		connect(_reenter, &Ui::MaskedInputField::changed, [=] { changed(); });
+		connect(_reenter, &Ui::MaskedInputField::submitted, [=] { submit(); });
+	}
 	_submit->setClickedCallback([=] { submit(); });
 	_logout->setClickedCallback([=] {
 		window->showLogoutConfirmation();
 	});
 
 	using namespace rpl::mappers;
-	if (Core::App().settings().systemUnlockEnabled()) {
+	if (!_setup && Core::App().settings().systemUnlockEnabled()) {
 		_systemUnlockAvailable = base::SystemUnlockStatus(
 			true
 		) | rpl::map([](base::SystemUnlockAvailability status) {
@@ -248,16 +263,47 @@ void PasscodeLockWidget::paintContent(QPainter &p) {
 
 	p.setFont(st::passcodeHeaderFont);
 	p.setPen(st::windowFg);
-	p.drawText(QRect(0, _passcode->y() - st::passcodeHeaderHeight, width(), st::passcodeHeaderHeight), tr::lng_passcode_enter(tr::now), style::al_center);
+	p.drawText(QRect(0, _passcode->y() - st::passcodeHeaderHeight, width(), st::passcodeHeaderHeight), (_setup
+		? tr::lng_passcode_create_title(tr::now)
+		: tr::lng_passcode_enter(tr::now)), style::al_center);
 
 	if (!_error.isEmpty()) {
+		const auto last = _reenter ? _reenter.data() : _passcode.data();
 		p.setFont(st::boxTextFont);
 		p.setPen(st::boxTextFgError);
-		p.drawText(QRect(0, _passcode->y() + _passcode->height(), width(), st::passcodeSubmitSkip), _error, style::al_center);
+		p.drawText(QRect(0, last->y() + last->height(), width(), st::passcodeSubmitSkip), _error, style::al_center);
 	}
 }
 
+void PasscodeLockWidget::submitSetup() {
+	const auto text = _passcode->text();
+	if (text.isEmpty()) {
+		_passcode->setFocus();
+		_passcode->showError();
+		return;
+	} else if (_reenter->text().isEmpty()) {
+		_reenter->setFocus();
+		_reenter->showError();
+		return;
+	} else if (_reenter->text() != text) {
+		_reenter->selectAll();
+		_reenter->setFocus();
+		_reenter->showError();
+		_error = tr::lng_passcode_differ(tr::now);
+		update();
+		return;
+	}
+	Core::App().domain().local().setPasscode(text.toUtf8());
+	Core::App().localPasscodeChanged();
+
+	Core::App().unlockPasscode(); // Destroys this widget.
+}
+
 void PasscodeLockWidget::submit() {
+	if (_setup) {
+		submitSetup();
+		return;
+	}
 	if (_passcode->text().isEmpty()) {
 		_passcode->showError();
 		return;
@@ -300,13 +346,24 @@ void PasscodeLockWidget::changed() {
 
 void PasscodeLockWidget::resizeEvent(QResizeEvent *e) {
 	_passcode->move((width() - _passcode->width()) / 2, (height() / 3));
-	_submit->move(_passcode->x(), _passcode->y() + _passcode->height() + st::passcodeSubmitSkip);
+	const auto last = [&]() -> not_null<Ui::PasswordInput*> {
+		if (!_reenter) {
+			return _passcode.data();
+		}
+		_reenter->move(_passcode->x(), _passcode->y() + _passcode->height() + st::passcodeSubmitSkip);
+		return _reenter.data();
+	}();
+	_submit->move(_passcode->x(), last->y() + last->height() + st::passcodeSubmitSkip);
 	_logout->move(_passcode->x() + (_passcode->width() - _logout->width()) / 2, _submit->y() + _submit->height() + st::linkFont->ascent);
 }
 
 void PasscodeLockWidget::setInnerFocus() {
 	LockWidget::setInnerFocus();
-	_passcode->setFocusFast();
+	if (_reenter && !_passcode->text().isEmpty()) {
+		_reenter->setFocusFast();
+	} else {
+		_passcode->setFocusFast();
+	}
 }
 
 TermsLock TermsLock::FromMTP(

@@ -80,11 +80,17 @@ private:
 	void systemUnlockDone(base::SystemUnlockResult result);
 	void changed();
 	void submit();
+	void submitSetup();
 	void error();
+
+	// True when the data is not protected yet, so a passcode has to be
+	// created here instead of an existing one being checked.
+	const bool _setup = false;
 
 	rpl::variable<SystemUnlockType> _systemUnlockAvailable;
 	rpl::variable<SystemUnlockType> _systemUnlockAllowed;
 	object_ptr<Ui::PasswordInput> _passcode;
+	object_ptr<Ui::PasswordInput> _reenter;
 	object_ptr<Ui::RoundButton> _submit;
 	object_ptr<Ui::LinkButton> _logout;
 	QString _error;

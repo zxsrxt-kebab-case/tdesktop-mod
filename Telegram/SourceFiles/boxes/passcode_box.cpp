@@ -711,8 +711,12 @@ void PasscodeBox::save(bool force) {
 		closeReplacedBy();
 		const auto weak = base::make_weak(this);
 		cSetPasscodeBadTries(0);
-		_session->domain().local().setPasscode(pwd.toUtf8());
-		Core::App().localPasscodeChanged();
+		if (!pwd.isEmpty()) {
+			// Turning the local passcode off is not supported: it is what
+			// keeps the data directory encrypted at rest.
+			_session->domain().local().setPasscode(pwd.toUtf8());
+			Core::App().localPasscodeChanged();
+		}
 		if (weak) {
 			closeBox();
 		}

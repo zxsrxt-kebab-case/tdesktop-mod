@@ -152,6 +152,21 @@ base::options::toggle ShowChannelJoinedBelowAbout({
 	.description = "Show when you join Channel under its Description.",
 });
 
+// The datacenter a peer is served from. Not exposed by the API directly, so
+// it is taken from the stats endpoint when known, and from the userpic's
+// storage location otherwise. Returns 0 when neither is available.
+[[nodiscard]] int PeerDcId(not_null<PeerData*> peer) {
+	if (const auto stats = peer->owner().statsDcId(peer)) {
+		return stats;
+	} else if (peer->hasUserpic()) {
+		const auto &data = peer->userpicLocation().file().data;
+		if (const auto storage = std::get_if<StorageFileLocation>(&data)) {
+			return storage->dcId();
+		}
+	}
+	return 0;
+}
+
 [[nodiscard]] rpl::producer<TextWithEntities> UsernamesSubtext(
 		not_null<PeerData*> peer,
 		rpl::producer<QString> fallback) {
@@ -244,6 +259,10 @@ base::options::toggle ShowChannelJoinedBelowAbout({
 			value.append(Link(
 				Italic(Lang::FormatCountDecimal(raw)),
 				kPeerIdLinkIndex));
+			if (const auto dc = PeerDcId(peer)) {
+				value.append(Italic(u"  dc: "_q));
+				value.append(Italic(QString::number(dc)));
+			}
 		}
 		if (ShowChannelJoinedBelowAbout.value()) {
 			if (const auto channel = peer->asChannel()) {

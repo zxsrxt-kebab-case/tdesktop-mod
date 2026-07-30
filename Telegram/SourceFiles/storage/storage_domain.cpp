@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "storage/storage_domain.h"
 
+#include "core/data_directory.h"
 #include "core/version.h"
 #include "storage/details/storage_file_utilities.h"
 #include "storage/serialize_common.h"
@@ -21,7 +22,7 @@ namespace {
 using namespace details;
 
 [[nodiscard]] QString BaseGlobalPath() {
-	return cWorkingDir() + u"tdata/"_q;
+	return Core::DataPath();
 }
 
 [[nodiscard]] QString ComputeKeyName(const QString &dataName) {
@@ -254,8 +255,19 @@ bool Domain::checkPasscode(const QByteArray &passcode) const {
 void Domain::setPasscode(const QByteArray &passcode) {
 	Expects(!_passcodeKeySalt.isEmpty());
 	Expects(_localKey != nullptr);
+	Expects(!passcode.isEmpty());
 
 	encryptLocalKey(passcode);
+	writeAccounts();
+
+	_passcodeKeyChanged.fire({});
+}
+
+void Domain::clearPasscodeOnLogout() {
+	Expects(!_passcodeKeySalt.isEmpty());
+	Expects(_localKey != nullptr);
+
+	encryptLocalKey(QByteArray());
 	writeAccounts();
 
 	_passcodeKeyChanged.fire({});

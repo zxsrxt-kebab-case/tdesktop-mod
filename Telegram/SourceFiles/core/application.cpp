@@ -24,6 +24,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/core_settings.h"
 #include "core/update_checker.h"
 #include "core/shortcuts.h"
+#include "core/streamer_mode.h"
 #include "core/sandbox.h"
 #include "core/local_url_handlers.h"
 #include "core/launcher.h"
@@ -490,10 +491,37 @@ void Application::startDomain() {
 		// In case of non-legacy passcoded app all global settings are ready.
 		startSettingsAndBackground();
 	}
+
+	// A passcode is what keeps the data directory encrypted at rest, so it
+	// must exist as soon as there is an authorized account to protect. Watch
+	// for a session appearing, not just for the one restored at startup.
+	_domain->activeSessionValue(
+	) | rpl::on_next([=](Main::Session *session) {
+		if (session) {
+			checkPasscodeSetupRequired();
+		}
+	}, _lifetime);
+
 	if (state != Storage::StartResult::Success) {
 		lockByPasscode();
 		DEBUG_LOG(("Application Info: passcode needed..."));
 	}
+}
+
+void Application::checkPasscodeSetupRequired() {
+	if (_passcodeSetupRequired
+		|| !_domain->started()
+		|| _domain->local().hasLocalPasscode()
+		|| !someSessionExists()) {
+		return;
+	}
+	DEBUG_LOG(("Application Info: passcode setup needed..."));
+	_passcodeSetupRequired = true;
+	lockByPasscode();
+}
+
+bool Application::passcodeSetupRequired() const {
+	return _passcodeSetupRequired;
 }
 
 void Application::startSettingsAndBackground() {
@@ -535,10 +563,20 @@ void Application::enumerateWindows(Fn<void(
 	}
 }
 
+void Application::refreshStreamerMode() {
+	enumerateWindows([](not_null<Window::Controller*> window) {
+		StreamerMode::Apply(window->widget());
+	});
+}
+
 void Application::processCreatedWindow(
 		not_null<Window::Controller*> window) {
 	window->openInMediaViewRequests(
 	) | rpl::start_to_stream(_openInMediaViewRequests, window->lifetime());
+
+	// A window created while streamer mode is on has to be excluded from
+	// capture too, not just the ones open when it was switched on.
+	StreamerMode::Apply(window->widget());
 }
 
 void Application::startMediaView() {
@@ -1284,6 +1322,7 @@ void Application::unlockPasscode() {
 
 void Application::clearPasscodeLock() {
 	cSetPasscodeBadTries(0);
+	_passcodeSetupRequired = false;
 	_passcodeLock = false;
 }
 

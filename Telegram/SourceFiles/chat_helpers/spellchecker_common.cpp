@@ -25,6 +25,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "spellcheck/spellcheck_value.h"
 #include "core/application.h"
 #include "core/core_settings.h"
+#include "core/data_directory.h"
 #include "core/version.h"
 
 #include <QtCore/QJsonArray>
@@ -405,7 +406,7 @@ QString DictPathByLangId(int langId) {
 }
 
 QString DictionariesPath() {
-	return cWorkingDir() + u"tdata/dictionaries"_q;
+	return Core::DataPath(u"dictionaries"_q);
 }
 
 bool UnpackDictionary(const QString &path, int langId) {

@@ -60,6 +60,10 @@ public:
 
 	void readInbox(not_null<History*> history);
 	void readInboxTill(not_null<HistoryItem*> item);
+
+	// Reads up to the item and flushes right away, even while ghost mode is
+	// on - for the explicit "mark as read" command.
+	void readInboxTillNow(not_null<HistoryItem*> item);
 	void readInboxTill(not_null<History*> history, MsgId tillId);
 	void readInboxOnNewMessage(not_null<HistoryItem*> item);
 	void readClientSideMessage(not_null<HistoryItem*> item);

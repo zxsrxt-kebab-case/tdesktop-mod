@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "countries/countries_manager.h"
 
 #include "core/application.h"
+#include "core/data_directory.h"
 #include "countries/countries_instance.h"
 #include "main/main_app_config.h"
 #include "main/main_account.h"
@@ -146,7 +147,7 @@ auto ProcessAlternativeName(Info &&info) {
 } // namespace
 
 Manager::Manager(not_null<Main::Domain*> domain)
-: _path(cWorkingDir() + "tdata/countries") {
+: _path(Core::DataPath(u"countries"_q)) {
 	read();
 
 	const auto mtpLifetime = _lifetime.make_state<rpl::lifetime>();

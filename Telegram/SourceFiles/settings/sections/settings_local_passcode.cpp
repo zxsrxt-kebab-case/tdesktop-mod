@@ -573,13 +573,8 @@ void BuildManageContent(SectionBuilder &builder) {
 		};
 	});
 
-	builder.add(nullptr, [] {
-		return SearchEntry{
-			.id = u"passcode/disable"_q,
-			.title = tr::lng_settings_passcode_disable(tr::now),
-			.keywords = { u"disable"_q, u"remove"_q, u"turn off"_q },
-		};
-	});
+	// The passcode is what keeps the data directory encrypted at rest, so
+	// it can't be disabled - only changed, or dropped by logging out.
 }
 
 class LocalPasscodeManage : public Section<LocalPasscodeManage> {
@@ -602,9 +597,7 @@ public:
 private:
 	void setupContent();
 
-	rpl::variable<bool> _isBottomFillerShown;
 	rpl::event_stream<> _showBack;
-	QPointer<Ui::RpWidget> _disableButton;
 
 };
 
@@ -675,45 +668,13 @@ void LocalPasscodeManage::setupContent() {
 
 base::weak_qptr<Ui::RpWidget> LocalPasscodeManage::createPinnedToBottom(
 		not_null<Ui::RpWidget*> parent) {
-	const auto weak = base::make_weak(this);
-	auto callback = [=] {
-		controller()->show(
-			Ui::MakeConfirmBox({
-				.text = tr::lng_settings_passcode_disable_sure(),
-				.confirmed = [=](Fn<void()> &&close) {
-					SetPasscode(controller(), QString());
-					Core::App().settings().setSystemUnlockEnabled(false);
-					Core::App().saveSettingsDelayed();
-
-					close();
-					if (weak) {
-						_showBack.fire({});
-					}
-					if (weak) {
-						controller()->hideSpecialLayer();
-					}
-				},
-				.confirmText = tr::lng_settings_auto_night_disable(),
-				.confirmStyle = &st::attentionBoxButton,
-			}));
-	};
-	auto bottomButton = CloudPassword::CreateBottomDisableButton(
-		parent,
-		geometryValue(),
-		tr::lng_settings_passcode_disable(),
-		std::move(callback));
-
-	_isBottomFillerShown = base::take(bottomButton.isBottomFillerShown);
-	_disableButton = bottomButton.button.get();
-
-	return bottomButton.content;
+	// No "Disable passcode" button: without a passcode the local key would
+	// be stored encrypted with an empty one, which protects nothing.
+	return {};
 }
 
 void LocalPasscodeManage::showFinished() {
 	Section<LocalPasscodeManage>::showFinished();
-	controller()->checkHighlightControl(
-		u"passcode/disable"_q,
-		_disableButton);
 }
 
 rpl::producer<> LocalPasscodeManage::sectionShowBack() {

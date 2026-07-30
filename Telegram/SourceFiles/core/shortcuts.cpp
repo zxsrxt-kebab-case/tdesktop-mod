@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/event_filter.h"
 #include "base/parse_helper.h"
 #include "core/application.h"
+#include "core/data_directory.h"
 #include "core/version.h"
 #include "mainwindow.h"
 #include "mainwidget.h"
@@ -221,11 +222,11 @@ private:
 };
 
 QString DefaultFilePath() {
-	return cWorkingDir() + u"tdata/shortcuts-default.json"_q;
+	return Core::DataPath(u"shortcuts-default.json"_q);
 }
 
 QString CustomFilePath() {
-	return cWorkingDir() + u"tdata/shortcuts-custom.json"_q;
+	return Core::DataPath(u"shortcuts-custom.json"_q);
 }
 
 bool DefaultFileIsValid() {

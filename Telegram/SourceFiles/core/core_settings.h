@@ -485,6 +485,54 @@ public:
 	[[nodiscard]] rpl::producer<bool> systemTextReplaceChanges() const {
 		return _systemTextReplace.changes();
 	}
+	void setMessageTimeSeconds(bool value) {
+		_messageTimeSeconds = value;
+	}
+	[[nodiscard]] bool messageTimeSeconds() const {
+		return _messageTimeSeconds.current();
+	}
+	[[nodiscard]] rpl::producer<bool> messageTimeSecondsValue() const {
+		return _messageTimeSeconds.value();
+	}
+	[[nodiscard]] rpl::producer<bool> messageTimeSecondsChanges() const {
+		return _messageTimeSeconds.changes();
+	}
+	void setStreamerMode(bool value) {
+		_streamerMode = value;
+	}
+	[[nodiscard]] bool streamerMode() const {
+		return _streamerMode.current();
+	}
+	[[nodiscard]] rpl::producer<bool> streamerModeValue() const {
+		return _streamerMode.value();
+	}
+	[[nodiscard]] rpl::producer<bool> streamerModeChanges() const {
+		return _streamerMode.changes();
+	}
+	void setGhostMode(bool value) {
+		_ghostMode = value;
+	}
+	// While on, the app stops telling the servers what it is doing: no read
+	// receipts, no "typing", no online status, no story views.
+	[[nodiscard]] bool ghostMode() const {
+		return _ghostMode.current();
+	}
+	[[nodiscard]] rpl::producer<bool> ghostModeValue() const {
+		return _ghostMode.value();
+	}
+	[[nodiscard]] rpl::producer<bool> ghostModeChanges() const {
+		return _ghostMode.changes();
+	}
+	void setSaveMessageVersions(bool value) {
+		_saveMessageVersions = value;
+	}
+	// Keep local copies of messages that get edited or deleted.
+	[[nodiscard]] bool saveMessageVersions() const {
+		return _saveMessageVersions.current();
+	}
+	[[nodiscard]] rpl::producer<bool> saveMessageVersionsValue() const {
+		return _saveMessageVersions.value();
+	}
 	[[nodiscard]] bool suggestEmoji() const {
 		return _suggestEmoji;
 	}
@@ -1130,6 +1178,10 @@ private:
 	rpl::variable<bool> _largeEmoji = true;
 	rpl::variable<bool> _replaceEmoji = true;
 	rpl::variable<bool> _systemTextReplace = true;
+	rpl::variable<bool> _messageTimeSeconds = false;
+	rpl::variable<bool> _streamerMode = false;
+	rpl::variable<bool> _ghostMode = false;
+	rpl::variable<bool> _saveMessageVersions = false;
 	bool _suggestEmoji = true;
 	bool _suggestStickersByEmoji = true;
 	bool _suggestAnimatedEmoji = true;

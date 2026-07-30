@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "data/data_peer_values.h"
 
+#include "core/time_format.h"
 #include "lang/lang_keys.h"
 #include "data/data_channel.h"
 #include "data/data_chat.h"
@@ -461,10 +462,10 @@ QString OnlineText(Data::LastseenStatus status, TimeId now) {
 	const auto nowFull = base::unixtime::parse(now);
 	const auto locale = QLocale();
 	if (onlineFull.date() == nowFull.date()) {
-		const auto onlineTime = locale.toString(onlineFull.time(), QLocale::ShortFormat);
+		const auto onlineTime = Core::FormatMessageTime(onlineFull.time());
 		return tr::lng_status_lastseen_today(tr::now, lt_time, onlineTime);
 	} else if (onlineFull.date().addDays(1) == nowFull.date()) {
-		const auto onlineTime = locale.toString(onlineFull.time(), QLocale::ShortFormat);
+		const auto onlineTime = Core::FormatMessageTime(onlineFull.time());
 		return tr::lng_status_lastseen_yesterday(tr::now, lt_time, onlineTime);
 	}
 	const auto date = locale.toString(onlineFull.date(), QLocale::ShortFormat);
@@ -489,14 +490,14 @@ QString OnlineTextFull(not_null<UserData*> user, TimeId now) {
 	const auto nowFull = base::unixtime::parse(now);
 	const auto locale = QLocale();
 	if (onlineFull.date() == nowFull.date()) {
-		const auto onlineTime = locale.toString(onlineFull.time(), QLocale::ShortFormat);
+		const auto onlineTime = Core::FormatMessageTime(onlineFull.time());
 		return tr::lng_status_lastseen_today(tr::now, lt_time, onlineTime);
 	} else if (onlineFull.date().addDays(1) == nowFull.date()) {
-		const auto onlineTime = locale.toString(onlineFull.time(), QLocale::ShortFormat);
+		const auto onlineTime = Core::FormatMessageTime(onlineFull.time());
 		return tr::lng_status_lastseen_yesterday(tr::now, lt_time, onlineTime);
 	}
 	const auto date = locale.toString(onlineFull.date(), QLocale::ShortFormat);
-	const auto time = locale.toString(onlineFull.time(), QLocale::ShortFormat);
+	const auto time = Core::FormatMessageTime(onlineFull.time());
 	return tr::lng_status_lastseen_date_time(tr::now, lt_date, date, lt_time, time);
 }
 

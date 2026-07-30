@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_who_reacted.h"
 
 #include "api/api_global_privacy.h"
+#include "core/time_format.h"
 #include "history/history_item.h"
 #include "history/history.h"
 #include "data/stickers/data_custom_emoji.h"
@@ -710,19 +711,19 @@ QString FormatReadDate(TimeId date, const QDateTime &now) {
 		return tr::lng_mediaview_today(
 			tr::now,
 			lt_time,
-			QLocale().toString(parsed.time(), QLocale::ShortFormat));
+			Core::FormatMessageTime(parsed.time()));
 	} else if (readDate.addDays(1) == nowDate) {
 		return tr::lng_mediaview_yesterday(
 			tr::now,
 			lt_time,
-			QLocale().toString(parsed.time(), QLocale::ShortFormat));
+			Core::FormatMessageTime(parsed.time()));
 	}
 	return tr::lng_mediaview_date_time(
 		tr::now,
 		lt_date,
 		langDayOfMonthShort(readDate),
 		lt_time,
-		QLocale().toString(parsed.time(), QLocale::ShortFormat));
+		Core::FormatMessageTime(parsed.time()));
 }
 
 bool WhoReadExists(not_null<HistoryItem*> item) {

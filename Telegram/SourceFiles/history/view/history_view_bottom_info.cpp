@@ -15,6 +15,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/text_options.h"
 #include "ui/text/text_utilities.h"
 #include "ui/painter.h"
+#include "core/time_format.h"
+#include "data/data_message_versions.h"
 #include "core/ui_integration.h"
 #include "lang/lang_keys.h"
 #include "history/history_item_components.h"
@@ -70,7 +72,7 @@ namespace {
 
 [[nodiscard]] QString FormatEditedDate(QDateTime sent, QDateTime edited) {
 	const auto today = QDateTime::currentDateTime().date();
-	const auto time = QLocale().toString(edited.time(), QLocale::ShortFormat);
+	const auto time = Core::FormatMessageTime(edited.time());
 	if (sent.date() == today && edited.date() == today) {
 		return tr::lng_edited_at(tr::now, lt_time, time);
 	}
@@ -484,7 +486,9 @@ void BottomInfo::layout() {
 void BottomInfo::layoutDateText() {
 	const auto editedPrimary = (_data.flags & Data::Flag::EditedPrimary)
 		&& !(_data.flags & Data::Flag::ForwardedDate);
-	const auto edited = editedPrimary
+	const auto edited = (_data.flags & Data::Flag::Deleted)
+		? (tr::lng_deleted_badge(tr::now) + ' ')
+		: editedPrimary
 		? QString()
 		: (_data.flags & Data::Flag::Edited)
 		? (tr::lng_edited(tr::now) + ' ')
@@ -499,7 +503,7 @@ void BottomInfo::layoutDateText() {
 		? FormatEditedDate(_data.date, _data.editedDate)
 		: edited + ((_data.flags & Data::Flag::ForwardedDate)
 		? Ui::FormatDateTimeSavedFrom(_data.date)
-		: QLocale().toString(_data.date.time(), QLocale::ShortFormat));
+		: Core::FormatMessageTime(_data.date.time()));
 	const auto afterAuthor = prefix + date;
 	const auto afterAuthorWidth = st::msgDateFont->width(afterAuthor);
 	const auto authorWidth = st::msgDateFont->width(author);
@@ -682,6 +686,10 @@ BottomInfo::Data BottomInfoDataFromMessage(not_null<Message*> message) {
 				result.author = msgsigned->author;
 			}
 		}
+	}
+	if (item->history()->owner().messageVersions().locallyDeleted(
+			item->fullId())) {
+		result.flags |= Flag::Deleted;
 	}
 	if (const auto editedDate = message->displayedEditDate()) {
 		result.flags |= Flag::Edited;

@@ -20,6 +20,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_forum_topic.h"
 #include "window/notifications_manager.h"
 #include "core/application.h"
+#include "core/core_settings.h"
 #include "lang/lang_keys.h"
 #include "apiwrap.h"
 
@@ -1004,6 +1005,10 @@ void RepliesList::sendReadTillRequest() {
 	}
 	const auto api = &_history->session().api();
 	api->request(base::take(_readRequestId)).cancel();
+
+	if (Core::App().settings().ghostMode()) {
+		return;
+	}
 
 	_readRequestId = api->request(MTPmessages_ReadDiscussion(
 		_history->peer->input(),

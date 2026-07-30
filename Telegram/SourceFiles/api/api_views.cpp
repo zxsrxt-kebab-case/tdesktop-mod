@@ -8,6 +8,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_views.h"
 
 #include "apiwrap.h"
+#include "core/application.h"
+#include "core/core_settings.h"
 #include "data/data_peer.h"
 #include "data/data_peer_id.h"
 #include "data/data_session.h"
@@ -97,7 +99,9 @@ void ViewsManager::viewsIncrement() {
 		const auto requestId = _api.request(MTPmessages_GetMessagesViews(
 			i->first->input(),
 			MTP_vector<MTPint>(ids),
-			MTP_bool(true)
+			// The flag asks the server to count this as a view. Ghost mode
+			// still reads the counters, it just does not add itself to them.
+			MTP_bool(!Core::App().settings().ghostMode())
 		)).done([=](
 				const MTPmessages_MessageViews &result,
 				mtpRequestId requestId) {

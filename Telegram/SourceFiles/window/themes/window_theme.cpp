@@ -26,6 +26,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/crc32hash.h"
 #include "base/never_freed_pointer.h"
 #include "base/qt_signal_producer.h"
+#include "core/data_directory.h"
 #include "data/data_session.h"
 #include "data/data_document_resolver.h"
 #include "main/main_account.h" // Account::local.
@@ -1521,7 +1522,7 @@ rpl::producer<bool> IsThemeDarkValue() {
 }
 
 QString EditingPalettePath() {
-	return cWorkingDir() + "tdata/editing-theme.tdesktop-palette";
+	return Core::DataPath(u"editing-theme.tdesktop-palette"_q);
 }
 
 bool ReadPaletteValues(const QByteArray &content, Fn<bool(QLatin1String name, QLatin1String value)> callback) {

@@ -17,6 +17,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "calls/calls_box_controller.h"
 #include "calls/calls_instance.h"
 #include "core/application.h"
+#include "core/streamer_mode.h"
 #include "core/click_handler_types.h"
 #include "data/data_changes.h"
 #include "data/data_document_media.h"
@@ -742,6 +743,39 @@ void MainMenu::setupMenu() {
 	)->setClickedCallback([=] {
 		controller->showSettings();
 	});
+
+	{
+		const auto ghost = addAction(
+			tr::lng_menu_ghost_mode(),
+			{ &st::menuIconStealth }
+		)->toggleOn(rpl::single(
+			Core::App().settings().ghostMode()
+		) | rpl::then(Core::App().settings().ghostModeChanges()));
+		ghost->toggledChanges(
+		) | rpl::filter([=](bool value) {
+			return (value != Core::App().settings().ghostMode());
+		}) | rpl::on_next([=](bool value) {
+			Core::App().settings().setGhostMode(value);
+			Core::App().saveSettingsDelayed();
+		}, ghost->lifetime());
+	}
+
+	if (Core::StreamerMode::Supported()) {
+		const auto streamer = addAction(
+			tr::lng_menu_streamer_mode(),
+			{ &st::menuIconVideoChat }
+		)->toggleOn(rpl::single(
+			Core::App().settings().streamerMode()
+		) | rpl::then(Core::App().settings().streamerModeChanges()));
+		streamer->toggledChanges(
+		) | rpl::filter([=](bool value) {
+			return (value != Core::App().settings().streamerMode());
+		}) | rpl::on_next([=](bool value) {
+			Core::App().settings().setStreamerMode(value);
+			Core::App().saveSettingsDelayed();
+			Core::App().refreshStreamerMode();
+		}, streamer->lifetime());
+	}
 
 	_nightThemeToggle = addAction(
 		tr::lng_menu_night_mode(),

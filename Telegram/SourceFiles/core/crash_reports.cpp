@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "core/crash_reports.h"
 
+#include "core/data_directory.h"
 #include "core/version.h"
 #include "platform/platform_specific.h"
 #include "base/platform/base_platform_info.h"
@@ -331,7 +332,7 @@ void StartCatching() {
 	ProcessAnnotations["Platform"] = PlatformString().toUtf8().constData();
 	ProcessAnnotations["UserTag"] = QString::number(Core::Launcher::Instance().installationTag(), 16).toUtf8().constData();
 
-	QString dumpspath = cWorkingDir() + u"tdata/dumps"_q;
+	QString dumpspath = Core::DataPath(u"dumps"_q);
 	QDir().mkpath(dumpspath);
 
 #ifdef Q_OS_WIN
@@ -400,7 +401,7 @@ void FinishCatching() {
 
 StartResult Start() {
 #ifndef TDESKTOP_DISABLE_CRASH_REPORTS
-	ReportPath = cWorkingDir() + u"tdata/working"_q;
+	ReportPath = Core::DataPath(u"working"_q);
 
 #ifdef Q_OS_WIN
 	FILE *f = nullptr;

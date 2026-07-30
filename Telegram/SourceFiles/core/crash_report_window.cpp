@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "core/crash_reports.h"
 #include "core/application.h"
+#include "core/data_directory.h"
 #include "core/sandbox.h"
 #include "core/update_checker.h"
 #include "core/ui_integration.h"
@@ -326,7 +327,7 @@ LastCrashedWindow::LastCrashedWindow(
 	}
 	if (_sendingState != SendingNoReport) {
 		qint64 dumpsize = 0;
-		QString dumpspath = cWorkingDir() + u"tdata/dumps"_q;
+		QString dumpspath = Core::DataPath(u"dumps"_q);
 #if defined Q_OS_MAC && !defined MAC_USE_BREAKPAD
 		dumpspath += u"/completed"_q;
 #endif
@@ -347,7 +348,7 @@ LastCrashedWindow::LastCrashedWindow(
 		}
 		if (_minidumpFull.isEmpty()) {
 			QString maxDump, maxDumpFull;
-			QDateTime maxDumpModified, workingModified = QFileInfo(cWorkingDir() + u"tdata/working"_q).lastModified();
+			QDateTime maxDumpModified, workingModified = QFileInfo(Core::DataPath(u"working"_q)).lastModified();
 			QFileInfoList list = QDir(dumpspath).entryInfoList();
 			for (int32 i = 0, l = list.size(); i < l; ++i) {
 				QString name = list.at(i).fileName();

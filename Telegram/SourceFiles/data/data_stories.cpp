@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/unixtime.h"
 #include "apiwrap.h"
 #include "core/application.h"
+#include "core/core_settings.h"
 #include "data/components/top_peers.h"
 #include "data/data_changes.h"
 #include "data/data_channel.h"
@@ -1236,6 +1237,9 @@ void Stories::markAsRead(FullStoryId id, bool viewed) {
 	if (id.peer == _owner->session().userPeerId()) {
 		return;
 	}
+	if (Core::App().settings().ghostMode()) {
+		return;
+	}
 	const auto maybeStory = lookup(id);
 	if (!maybeStory) {
 		return;
@@ -1394,6 +1398,9 @@ void Stories::toggleHidden(
 void Stories::sendMarkAsReadRequest(
 		not_null<PeerData*> peer,
 		StoryId tillId) {
+	if (Core::App().settings().ghostMode()) {
+		return;
+	}
 	const auto peerId = peer->id;
 	_markReadRequests.emplace(peerId);
 	const auto finish = [=] {
@@ -1423,6 +1430,9 @@ void Stories::checkQuitPreventFinished() {
 
 void Stories::sendMarkAsReadRequests() {
 	_markReadTimer.cancel();
+	if (Core::App().settings().ghostMode()) {
+		return;
+	}
 	for (auto i = begin(_markReadPending); i != end(_markReadPending);) {
 		const auto peerId = *i;
 		if (_markReadRequests.contains(peerId)) {
@@ -1439,6 +1449,9 @@ void Stories::sendMarkAsReadRequests() {
 
 void Stories::sendIncrementViewsRequests() {
 	if (_incrementViewsPending.empty()) {
+		return;
+	}
+	if (Core::App().settings().ghostMode()) {
 		return;
 	}
 	struct Prepared {

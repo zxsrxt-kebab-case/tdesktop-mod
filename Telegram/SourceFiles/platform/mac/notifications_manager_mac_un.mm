@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/options.h"
 #include "base/platform/mac/base_utilities_mac.h"
 #include "base/random.h"
+#include "core/data_directory.h"
 #include "data/data_forum_topic.h"
 #include "data/data_peer.h"
 #include "data/data_saved_sublist.h"
@@ -250,7 +251,7 @@ UNManager::Private::Private(UNManager *manager)
 : _managerId(base::RandomValue<uint64>())
 , _managerIdString(QString::number(_managerId))
 , _sounds(ResolveSoundsFolder()) {
-	QDir().mkpath(cWorkingDir() + u"tdata/temp"_q);
+	QDir().mkpath(Core::DataPath(u"temp"_q));
 	if (@available(macOS 10.14, *)) {
 		_delegate = [[UserNotificationsDelegate alloc]
 			initWithManager:manager
@@ -395,8 +396,8 @@ void UNManager::Private::showNotification(
 		}
 
 		if (!info.options.hideNameAndPhoto) {
-			const auto path = u"%1tdata/temp/%2.png"_q.arg(
-				cWorkingDir(),
+			const auto path = u"%1temp/%2.png"_q.arg(
+				Core::DataPath(),
 				QString::number(base::RandomValue<uint64>(), 16));
 			if (Window::Notifications::GenerateUserpic(peer, userpicView)
 					.save(path, "PNG")) {

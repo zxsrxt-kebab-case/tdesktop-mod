@@ -21,6 +21,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/file_location.h"
 #include "core/application.h"
 #include "core/core_settings.h"
+#include "core/data_directory.h"
 #include "core/version.h"
 #include "media/audio/media_audio.h"
 #include "mtproto/mtproto_config.h"
@@ -144,7 +145,7 @@ void applyReadContext(ReadSettingsContext &&context) {
 
 bool _readOldSettings(bool remove, ReadSettingsContext &context) {
 	bool result = false;
-	auto file = QFile(cWorkingDir() + u"tdata/config"_q);
+	auto file = QFile(Core::DataPath(u"config"_q));
 	if (file.open(QIODevice::ReadOnly)) {
 		LOG(("App Info: reading old config..."));
 		QDataStream stream(&file);
@@ -356,7 +357,7 @@ void start() {
 
 	_localLoader = new TaskQueue(kFileLoaderQueueStopTimeout);
 
-	_basePath = cWorkingDir() + u"tdata/"_q;
+	_basePath = Core::DataPath();
 	if (!QDir().exists(_basePath)) QDir().mkpath(_basePath);
 
 	ReadSettingsContext context;
@@ -537,7 +538,7 @@ const QString &AutoupdatePrefix(const QString &replaceWith = {}) {
 QString autoupdatePrefixFile() {
 	Expects(!Core::UpdaterDisabled());
 
-	return cWorkingDir() + "tdata/prefix";
+	return Core::DataPath(u"prefix"_q);
 }
 
 const QString &readAutoupdatePrefixRaw() {

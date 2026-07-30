@@ -404,7 +404,7 @@ bool Domain::removePasscodeIfEmpty() {
 	if (!_local->hasLocalPasscode()) {
 		return false;
 	}
-	_local->setPasscode(QByteArray());
+	_local->clearPasscodeOnLogout();
 	Core::App().settings().setSystemUnlockEnabled(false);
 	Core::App().saveSettingsDelayed();
 	return true;

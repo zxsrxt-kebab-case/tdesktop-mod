@@ -87,6 +87,13 @@ public:
 	void writeMtpData();
 	void writeMtpConfig();
 
+	// Locally kept copies of deleted and edited messages. Stored as one
+	// encrypted blob under a fixed name, like the mtp data and the session
+	// settings are - deliberately not registered in the key map, so that the
+	// index to all the other account data is left untouched.
+	void writeMessageVersions(const QByteArray &serialized);
+	[[nodiscard]] QByteArray readMessageVersions();
+
 	void registerDraftSource(
 		not_null<History*> history,
 		Data::DraftKey key,

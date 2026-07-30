@@ -1093,6 +1093,7 @@ void BuildMessagesSection(SectionBuilder &builder) {
 				: SearchEntryCheckIcon::Unchecked,
 		};
 	});
+
 }
 
 void BuildSensitiveContentSection(SectionBuilder &builder) {

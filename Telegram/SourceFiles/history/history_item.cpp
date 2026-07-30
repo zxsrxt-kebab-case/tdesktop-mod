@@ -38,6 +38,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "apiwrap.h"
 #include "media/audio/media_audio.h"
 #include "core/application.h"
+#include "data/data_message_versions.h"
+#include "core/core_settings.h"
 #include "window/window_controller.h"
 #include "window/window_session_controller.h"
 #include "core/click_handler_types.h"
@@ -2195,6 +2197,11 @@ void HistoryItem::clearMainView() {
 }
 
 void HistoryItem::applyEdition(HistoryMessageEdition &&edition) {
+	if (Core::App().settings().saveMessageVersions()) {
+		// Still holding the previous text at this point.
+		history()->owner().messageVersions().captureBeforeEdit(this);
+	}
+
 	int keyboardTop = -1;
 	//if (!pendingResize()) {// #TODO edit bot message
 	//	if (auto keyboard = inlineReplyKeyboard()) {

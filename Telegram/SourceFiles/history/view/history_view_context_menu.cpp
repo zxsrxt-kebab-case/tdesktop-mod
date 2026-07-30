@@ -90,6 +90,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/stickers/data_custom_emoji.h"
 #include "chat_helpers/message_field.h" // FactcheckFieldIniter.
 #include "core/file_utilities.h"
+#include "core/time_format.h"
+#include "history/view/history_view_message_versions.h"
+#include "data/data_message_versions.h"
+#include "data/data_histories.h"
 #include "core/click_handler_types.h"
 #include "base/platform/base_platform_info.h"
 #include "base/call_delayed.h"
@@ -1104,6 +1108,13 @@ void AddMessageActions(
 		not_null<Ui::PopupMenu*> menu,
 		const ContextMenuRequest &request,
 		not_null<ListWidget*> list) {
+	if (request.item && request.selectedItems.empty()) {
+		AddMarkAsReadAction(menu, request.item);
+		AddMessageVersionsAction(
+			menu,
+			list->controller()->uiShow(),
+			request.item);
+	}
 	AddPostLinkAction(menu, request);
 	AddForwardAction(menu, request, list);
 	AddSendNowAction(menu, request, list);
@@ -2124,7 +2135,7 @@ void AddWhenEditedForwardedAuthorActionHelper(
 						lt_date,
 						langDayOfMonthShort(sent.date()),
 						lt_time,
-						QLocale().toString(sent.time(), QLocale::ShortFormat))));
+						Core::FormatMessageTime(sent.time()))));
 				label->setAttribute(Qt::WA_TransparentForMouseEvents);
 				menu->addAction(std::move(label));
 			} else {
@@ -2651,6 +2662,40 @@ void AddSelectRestrictionAction(
 		(addIcon && !user) ? &st::menuIconCopyright : nullptr);
 	button->setAttribute(Qt::WA_TransparentForMouseEvents);
 	menu->addAction(std::move(button));
+}
+
+void AddMarkAsReadAction(
+		not_null<Ui::PopupMenu*> menu,
+		not_null<HistoryItem*> item) {
+	if (!item->isRegular()
+		|| item->out()
+		|| !Core::App().settings().ghostMode()) {
+		return;
+	}
+	const auto history = item->history();
+	const auto id = item->fullId();
+	menu->addAction(tr::lng_context_mark_read(tr::now), [=] {
+		if (const auto strong = history->owner().message(id)) {
+			history->owner().histories().readInboxTillNow(strong);
+		}
+	}, &st::menuIconMarkRead);
+}
+
+void AddMessageVersionsAction(
+		not_null<Ui::PopupMenu*> menu,
+		std::shared_ptr<Ui::Show> show,
+		not_null<HistoryItem*> item) {
+	if (!item->isRegular()) {
+		return;
+	}
+	const auto session = &item->history()->session();
+	const auto id = item->fullId();
+	if (!session->data().messageVersions().has(id)) {
+		return;
+	}
+	menu->addAction(tr::lng_context_message_versions(tr::now), [=] {
+		show->show(Box(MessageVersionsBox, session, id));
+	}, &st::menuIconInfo);
 }
 
 void AddEphemeralMessageActions(

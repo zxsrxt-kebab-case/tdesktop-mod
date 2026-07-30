@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/invoke_queued.h"
 #include "base/qt_signal_producer.h"
 #include "core/application.h"
+#include "core/data_directory.h"
 #include "core/version.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
@@ -404,7 +405,7 @@ void WriteIco(const QString &path, std::vector<QImage> images) {
 QString Tray::QuitJumpListIconPath() {
 	const auto dark = IsDarkTaskbar();
 	const auto key = !dark ? 0 : *dark ? 1 : 2;
-	const auto path = cWorkingDir() + u"tdata/temp/quit_%1.ico"_q.arg(key);
+	const auto path = Core::DataPath(u"temp/quit_%1.ico"_q.arg(key));
 	if (QFile::exists(path)) {
 		return path;
 	}

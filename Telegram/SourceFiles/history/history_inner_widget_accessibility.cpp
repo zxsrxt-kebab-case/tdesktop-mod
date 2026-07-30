@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history_inner_widget_accessibility.h"
 
 #include "base/unixtime.h"
+#include "core/time_format.h"
 #include "data/data_document.h"
 #include "data/data_game.h"
 #include "data/data_media_types.h"
@@ -313,7 +314,7 @@ QString MessageAccessibilityName(
 	statusParts.push_back(
 		tr::lng_schedule_at(tr::now)
 		+ u" "_q
-		+ QLocale().toString(dateTime.time(), QLocale::ShortFormat));
+		+ Core::FormatMessageTime(dateTime.time()));
 	if (const auto views = item->Get<HistoryMessageViews>()) {
 		if (views->views.count >= 0) {
 			statusParts.push_back(
@@ -720,7 +721,7 @@ QString MessageSubItemValue(
 		const auto dateTime = view->dateTime();
 		return tr::lng_schedule_at(tr::now)
 			+ u" "_q
-			+ QLocale().toString(dateTime.time(), QLocale::ShortFormat);
+			+ Core::FormatMessageTime(dateTime.time());
 	}
 	case MessageSubItem::Reactions: {
 		const auto &reactions = data->reactions();

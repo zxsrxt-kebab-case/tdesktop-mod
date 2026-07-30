@@ -30,6 +30,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history_item_helpers.h"
 #include "history/view/history_view_element.h"
 #include "core/application.h"
+#include "core/core_settings.h"
 #include "apiwrap.h"
 
 namespace Data {
@@ -683,9 +684,42 @@ void Histories::reportPendingDeliveries() {
 	}
 }
 
+void Histories::readInboxTillNow(not_null<HistoryItem*> item) {
+	const auto history = item->history();
+	if (!IsServerMsgId(item->id)) {
+		return;
+	}
+	// readInboxTill() would bail out here: ghost mode still advances the
+	// local read state, so by now the client thinks there is nothing to
+	// report. Go straight to the sender instead.
+	auto &state = _states[history];
+	if (state.willReadTill < item->id) {
+		state.willReadTill = item->id;
+	}
+	if (state.willReadTill <= state.sentReadTill) {
+		return;
+	}
+	state.willReadWhen = 0;
+	sendReadRequest(history, state);
+}
+
 void Histories::sendReadRequests() {
 	DEBUG_LOG(("Reading: send requests with count %1.").arg(_states.size()));
-	if (_states.empty()) {
+	if (Core::App().settings().ghostMode()) {
+		// Drop what piled up as well, so that turning ghost mode off later
+		// does not flush a burst of read receipts for everything seen while
+		// it was on. States with a request already in flight have to stay:
+		// their completion callback asserts on finding them.
+		DEBUG_LOG(("Reading: skipped, ghost mode."));
+		for (auto i = _states.begin(); i != _states.end();) {
+			if (i->second.sentReadTill) {
+				++i;
+			} else {
+				i = _states.erase(i);
+			}
+		}
+		return;
+	} else if (_states.empty()) {
 		return;
 	}
 	const auto now = crl::now();

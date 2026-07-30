@@ -26,6 +26,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history_item.h"
 #include "core/application.h"
 #include "core/core_settings.h"
+#include "core/data_directory.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
 #include "mainwindow.h"
@@ -706,7 +707,7 @@ bool Manager::Private::showNotification(
 
 std::wstring Manager::Private::ensureSendButtonIcon() {
 	if (_sendButtonIconPath.empty()) {
-		const auto path = cWorkingDir() + u"tdata/temp/fast_reply.png"_q;
+		const auto path = Core::DataPath(u"temp/fast_reply.png"_q);
 		st::historySendIcon.instance(Qt::white, 300).save(path, "PNG");
 		_sendButtonIconPath = path.toStdWString();
 	}

@@ -39,7 +39,14 @@ public:
 	void startFromScratch();
 
 	[[nodiscard]] bool checkPasscode(const QByteArray &passcode) const;
+
+	// The local key must never sit on disk encrypted with an empty
+	// passcode, so an empty one is rejected here.
 	void setPasscode(const QByteArray &passcode);
+
+	// The only allowed way back to an empty passcode: nothing is left to
+	// protect, because the last account has just been logged out.
+	void clearPasscodeOnLogout();
 
 	[[nodiscard]] int oldVersion() const;
 	void clearOldVersion();

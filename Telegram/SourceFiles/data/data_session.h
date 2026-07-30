@@ -71,6 +71,7 @@ class Stickers;
 class GroupCall;
 class NotifySettings;
 class CustomEmojiManager;
+class MessageVersions;
 class Stories;
 class SavedMusic;
 class SavedMessages;
@@ -230,6 +231,9 @@ public:
 	}
 	[[nodiscard]] Stories &stories() const {
 		return *_stories;
+	}
+	[[nodiscard]] MessageVersions &messageVersions() const {
+		return *_messageVersions;
 	}
 	[[nodiscard]] SavedMusic &savedMusic() const {
 		return *_savedMusic;
@@ -1394,6 +1398,7 @@ private:
 	const std::unique_ptr<Streaming> _streaming;
 	const std::unique_ptr<MediaRotation> _mediaRotation;
 	const std::unique_ptr<Histories> _histories;
+	const std::unique_ptr<MessageVersions> _messageVersions;
 	const std::unique_ptr<Stickers> _stickers;
 	const std::unique_ptr<Reactions> _reactions;
 	const std::unique_ptr<EmojiStatuses> _emojiStatuses;

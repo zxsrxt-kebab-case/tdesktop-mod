@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/platform/linux/base_linux_dbus_utilities.h"
 #include "platform/platform_specific.h"
 #include "core/application.h"
+#include "core/data_directory.h"
 #include "core/sandbox.h"
 #include "core/version.h"
 #include "data/data_forum_topic.h"
@@ -338,7 +339,7 @@ void Create(Window::Notifications::System *system) {
 Manager::Private::Private(not_null<Manager*> manager)
 : _manager(manager)
 , _application(Gio::Application::get_default())
-, _sounds(cWorkingDir() + u"tdata/audio_cache"_q) {
+, _sounds(Core::DataPath(u"audio_cache"_q)) {
 	const auto &serverInformation = CurrentServerInformation;
 
 	if (!serverInformation.name.empty()) {

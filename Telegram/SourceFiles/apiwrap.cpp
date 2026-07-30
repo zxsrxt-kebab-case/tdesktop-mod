@@ -67,6 +67,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_history_messages.h"
 #include "core/core_cloud_password.h"
 #include "core/application.h"
+#include "core/core_settings.h"
 #include "base/unixtime.h"
 #include "base/random.h"
 #include "base/call_delayed.h"
@@ -1422,8 +1423,17 @@ void ApiWrap::markContentsRead(
 		not_null<ChannelData*>,
 		QVector<MTPint>>();
 	markedIds.reserve(items.size());
+	const auto ghost = Core::App().settings().ghostMode();
 	for (const auto &item : items) {
+		// Mentions and reactions keep their badge until the server is told,
+		// so those still go through even in ghost mode - what is held back
+		// is the "media played/viewed" receipt.
+		const auto keepBadgeInSync = (item->isUnreadMention()
+			|| item->hasUnreadReaction())
+			&& !item->isUnreadMedia();
 		if (!item->markContentsRead(true) || !item->isRegular()) {
+			continue;
+		} else if (ghost && !keepBadgeInSync) {
 			continue;
 		}
 		if (const auto channel = item->history()->peer->asChannel()) {
@@ -1448,7 +1458,12 @@ void ApiWrap::markContentsRead(
 }
 
 void ApiWrap::markContentsRead(not_null<HistoryItem*> item) {
+	const auto keepBadgeInSync = (item->isUnreadMention()
+		|| item->hasUnreadReaction())
+		&& !item->isUnreadMedia();
 	if (!item->markContentsRead(true) || !item->isRegular()) {
+		return;
+	} else if (Core::App().settings().ghostMode() && !keepBadgeInSync) {
 		return;
 	}
 	const auto ids = MTP_vector<MTPint>(1, MTP_int(item->id));

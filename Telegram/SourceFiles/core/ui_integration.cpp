@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/file_utilities.h"
 #include "core/application.h"
 #include "core/bank_card_click_handler.h"
+#include "core/data_directory.h"
 #include "core/sandbox.h"
 #include "core/click_handler_types.h"
 #include "data/stickers/data_custom_emoji.h"
@@ -113,11 +114,11 @@ const auto kBadPrefix = u"http://"_q;
 }
 
 [[nodiscard]] QString OpenGLCheckFilePath() {
-	return cWorkingDir() + "tdata/opengl_crash_check";
+	return Core::DataPath(u"opengl_crash_check"_q);
 }
 
 [[nodiscard]] QString ANGLEBackendFilePath() {
-	return cWorkingDir() + "tdata/angle_backend";
+	return Core::DataPath(u"angle_backend"_q);
 }
 
 [[nodiscard]] Ui::Text::FormattedDateResult FormatDateRelative(TimeId date) {
@@ -281,7 +282,7 @@ void UiIntegration::unregisterLeaveSubscription(not_null<QWidget*> widget) {
 }
 
 QString UiIntegration::emojiCacheFolder() {
-	return cWorkingDir() + "tdata/emoji";
+	return Core::DataPath(u"emoji"_q);
 }
 
 QString UiIntegration::openglCheckFilePath() {

@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/buttons.h" // Ui::IconButton
 #include "ui/wrap/slide_wrap.h" // Ui::SlideWrap
 #include "base/platform/base_platform_info.h"
+#include "core/data_directory.h"
 #include "lang/lang_keys.h"
 #include "styles/style_window.h"
 
@@ -98,7 +99,7 @@ void Bar::paintEvent(QPaintEvent *e) {
 }
 
 [[nodiscard]] QString LastHiddenPath(const QString &workingDir) {
-	return workingDir + u"tdata/outdated_hidden"_q;
+	return workingDir + Core::DataDirName() + u"/outdated_hidden"_q;
 }
 
 [[nodiscard]] bool Skip(const QDate &date, const QString &workingDir) {

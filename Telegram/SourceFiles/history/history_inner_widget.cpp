@@ -3456,6 +3456,11 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 					_controller->uiShow(),
 					item);
 			}
+			HistoryView::AddMarkAsReadAction(_menu, item);
+			HistoryView::AddMessageVersionsAction(
+				_menu,
+				_controller->uiShow(),
+				item);
 			addSelectMessageAction(item);
 			if (isUponSelected != -2) {
 				HistoryView::AddEphemeralAboutAction(_menu, item);
@@ -3761,6 +3766,11 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 					_controller->uiShow(),
 					item);
 			}
+			HistoryView::AddMarkAsReadAction(_menu, item);
+			HistoryView::AddMessageVersionsAction(
+				_menu,
+				_controller->uiShow(),
+				item);
 			addSelectMessageAction(partItemOrLeader);
 			if (isUponSelected != -2) {
 				HistoryView::AddEphemeralAboutAction(_menu, item);

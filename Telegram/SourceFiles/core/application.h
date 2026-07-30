@@ -171,6 +171,10 @@ public:
 		not_null<QWidget*> widget) const;
 	[[nodiscard]] Window::Controller *activeWindow() const;
 	[[nodiscard]] Window::Controller *activePrimaryWindow() const;
+
+	// Applies the current streamer mode setting to all open windows. Lives
+	// here because enumerating windows is Application's business.
+	void refreshStreamerMode();
 	void setActivePrimaryWindow(not_null<Window::Controller*> window);
 	[[nodiscard]] Window::Controller *separateWindowFor(
 		Window::SeparateId id) const;
@@ -304,6 +308,11 @@ public:
 	void maybeLockByPasscode();
 	void unlockPasscode();
 	[[nodiscard]] bool passcodeLocked() const;
+
+	// True while the lock screen must ask for a new passcode instead of
+	// checking an existing one, because the data is not protected yet.
+	[[nodiscard]] bool passcodeSetupRequired() const;
+	void checkPasscodeSetupRequired();
 	rpl::producer<bool> passcodeLockChanges() const;
 	rpl::producer<bool> passcodeLockValue() const;
 
@@ -453,6 +462,7 @@ private:
 	bool _floatPlayerGifsPaused = false;
 
 	rpl::variable<bool> _passcodeLock;
+	bool _passcodeSetupRequired = false;
 	rpl::variable<bool> _setupEmailLock;
 	bool _screenIsLocked = false;
 

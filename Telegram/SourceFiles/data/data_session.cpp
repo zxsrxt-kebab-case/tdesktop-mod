@@ -70,6 +70,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/options.h"
 #include "data/data_send_action.h"
 #include "data/data_message_reactions.h"
+#include "data/data_message_versions.h"
 #include "data/data_emoji_statuses.h"
 #include "data/data_forum_icons.h"
 #include "data/data_cloud_themes.h"
@@ -262,6 +263,7 @@ Session::Session(not_null<Main::Session*> session)
 , _notifySettings(std::make_unique<NotifySettings>(this))
 , _customEmojiManager(std::make_unique<CustomEmojiManager>(this))
 , _stories(std::make_unique<Stories>(this))
+, _messageVersions(std::make_unique<MessageVersions>(this))
 , _savedMusic(std::make_unique<SavedMusic>(this))
 , _savedMessages(std::make_unique<SavedMessages>(this))
 , _chatbots(std::make_unique<Chatbots>(this))
@@ -3091,6 +3093,16 @@ void Session::processMessagesDeleted(
 		const auto i = list ? list->find(messageId.v) : Messages::iterator();
 		if (list && i != list->end()) {
 			const auto history = i->second->history();
+			if (Core::App().settings().saveMessageVersions()) {
+				// Keep it on screen with a "deleted" badge instead of
+				// removing it. The server no longer has it, so this only
+				// lasts until the history is reloaded.
+				_messageVersions->captureBeforeDelete(i->second);
+				_messageVersions->markLocallyDeleted(i->second->fullId());
+				requestItemViewRefresh(i->second);
+				requestItemResize(i->second);
+				continue;
+			}
 			toDestroy.push_back(i->second);
 			historiesToCheck.emplace(history);
 		} else if (affected) {
@@ -3116,6 +3128,13 @@ void Session::processNonChannelMessagesDeleted(const QVector<MTPint> &data) {
 	for (const auto &messageId : data) {
 		if (const auto item = nonChannelMessage(messageId.v)) {
 			const auto history = item->history();
+			if (Core::App().settings().saveMessageVersions()) {
+				_messageVersions->captureBeforeDelete(item);
+				_messageVersions->markLocallyDeleted(item->fullId());
+				requestItemViewRefresh(item);
+				requestItemResize(item);
+				continue;
+			}
 			toDestroy.push_back(item);
 			historiesToCheck.emplace(history);
 		}

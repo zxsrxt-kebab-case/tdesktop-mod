@@ -14,6 +14,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/platform/base_platform_file_utilities.h"
 #include "ui/main_queue_processor.h"
 #include "core/crash_reports.h"
+#include "core/data_directory.h"
 #include "core/update_checker.h"
 #include "core/sandbox.h"
 #include "core/version.h"
@@ -104,7 +105,7 @@ void FilteredCommandLineArguments::pushArgument(const char *text) {
 }
 
 QString DebugModeSettingPath() {
-	return cWorkingDir() + u"tdata/withdebug"_q;
+	return DataPath(u"withdebug"_q);
 }
 
 void WriteDebugModeSetting() {
@@ -160,7 +161,7 @@ void ComputeExternalUpdater() {
 }
 
 QString InstallBetaVersionsSettingPath() {
-	return cWorkingDir() + u"tdata/devversion"_q;
+	return DataPath(u"devversion"_q);
 }
 
 void WriteInstallBetaVersionsSetting() {
@@ -186,7 +187,7 @@ void ComputeInstallBetaVersions() {
 
 void ComputeInstallationTag() {
 	InstallationTag = 0;
-	auto file = QFile(cWorkingDir() + u"tdata/usertag"_q);
+	auto file = QFile(DataPath(u"usertag"_q));
 	if (file.open(QIODevice::ReadOnly)) {
 		const auto result = file.read(
 			reinterpret_cast<char*>(&InstallationTag),
@@ -248,12 +249,15 @@ bool CheckPortableVersionFolder() {
 	}
 
 	const auto portable = cExeDir() + u"TelegramForcePortable"_q;
-	QFile key(portable + u"/tdata/alpha"_q);
+
+	// The data directory name is known only after the working dir is final.
+	auto key = QFile();
 	if (cAlphaVersion()) {
 		Assert(*AlphaPrivateKey != 0);
 
 		cForceWorkingDir(portable);
-		QDir().mkpath(cWorkingDir() + u"tdata"_q);
+		InitDataDirectory();
+		key.setFileName(DataPath(u"alpha"_q));
 		cSetAlphaPrivateKey(QByteArray(AlphaPrivateKey));
 		if (!key.open(QIODevice::WriteOnly)) {
 			LOG(("FATAL: Could not open '%1' for writing private key!"
@@ -269,6 +273,8 @@ bool CheckPortableVersionFolder() {
 		return true;
 	}
 	cForceWorkingDir(portable);
+	InitDataDirectory();
+	key.setFileName(DataPath(u"alpha"_q));
 	if (!key.exists()) {
 		return true;
 	}
@@ -385,7 +391,7 @@ int Launcher::exec() {
 
 	// Must be started before Platform is started.
 	Logs::start();
-	base::options::init(cWorkingDir() + "tdata/experimental_options.json");
+	base::options::init(DataPath(u"experimental_options.json"_q));
 
 	// Must be called after options are inited.
 	initHighDpi();

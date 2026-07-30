@@ -27,6 +27,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history.h"
 #include "core/application.h"
 #include "core/core_settings.h"
+#include "core/data_directory.h"
 #include "core/file_location.h"
 #include "core/version.h"
 #include "data/components/recent_inline_bots.h"
@@ -125,7 +126,7 @@ auto EmptyMessageDraftSources()
 }
 
 [[nodiscard]] QString BaseGlobalPath() {
-	return cWorkingDir() + u"tdata/"_q;
+	return Core::DataPath();
 }
 
 [[nodiscard]] QString ComputeDatabasePath(const QString &dataName) {
@@ -137,7 +138,7 @@ auto EmptyMessageDraftSources()
 }
 
 [[nodiscard]] QString LegacyTempDirectory() {
-	return cWorkingDir() + u"tdata/tdld/"_q;
+	return Core::DataPath(u"tdld/"_q);
 }
 
 [[nodiscard]] std::pair<quint64, quint64> SerializeSuggest(
@@ -1143,6 +1144,35 @@ std::unique_ptr<Main::SessionSettings> Account::applyReadContext(
 	}
 
 	return std::move(context.sessionSettingsStorage);
+}
+
+void Account::writeMessageVersions(const QByteArray &serialized) {
+	Expects(_localKey != nullptr);
+
+	const auto size = sizeof(quint32) + Serialize::bytearraySize(serialized);
+
+	FileWriteDescriptor file(u"msgversions"_q, _basePath);
+	EncryptedDescriptor data(size);
+	data.stream << quint32(1) << serialized; // Version tag, then the payload.
+	file.writeEncrypted(data, _localKey);
+}
+
+QByteArray Account::readMessageVersions() {
+	if (!_localKey) {
+		return {};
+	}
+	FileReadDescriptor file;
+	if (!ReadEncryptedFile(file, u"msgversions"_q, _basePath, _localKey)) {
+		return {};
+	}
+	auto version = quint32();
+	auto serialized = QByteArray();
+	file.stream >> version >> serialized;
+	if (!CheckStreamStatus(file.stream) || version != 1) {
+		LOG(("App Error: Bad message versions file."));
+		return {};
+	}
+	return serialized;
 }
 
 void Account::writeMtpData() {

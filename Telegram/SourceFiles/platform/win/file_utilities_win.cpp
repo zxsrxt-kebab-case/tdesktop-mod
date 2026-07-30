@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "core/application.h"
 #include "core/crash_reports.h"
+#include "core/data_directory.h"
 #include "window/window_controller.h"
 #include "ui/ui_utility.h"
 
@@ -360,7 +361,7 @@ void InitLastPath() {
 	}
 
 	if (cDialogHelperPath().isEmpty()) {
-		QDir temppath(cWorkingDir() + "tdata/tdummy/");
+		QDir temppath(Core::DataPath(u"tdummy/"_q));
 		if (!temppath.exists()) {
 			temppath.mkpath(temppath.absolutePath());
 		}

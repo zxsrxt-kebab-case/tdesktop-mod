@@ -705,6 +705,23 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_settings_chat_quick_action_react" = "Send reaction with double click";
 "lng_settings_chat_corner_reply" = "Reply button on messages";
 "lng_settings_chat_corner_reaction" = "Reaction button on messages";
+"lng_settings_message_seconds" = "Show seconds in message time";
+"lng_settings_streamer_mode" = "Streamer mode (hide windows from screen capture)";
+"lng_settings_ghost_mode" = "Ghost mode (no read receipts, typing or online status)";
+"lng_settings_modifications" = "Modifications";
+"lng_settings_modifications_privacy" = "Privacy";
+"lng_settings_modifications_appearance" = "Appearance";
+"lng_settings_modifications_history" = "Message history";
+"lng_settings_save_message_versions" = "Keep edited and deleted messages";
+"lng_settings_save_message_versions_about" = "Stores a local copy of what a message said before it was edited or deleted. Kept encrypted with the rest of your data. Messages with a self-destruct timer are never stored.";
+"lng_message_versions_title" = "Message history";
+"lng_message_versions_empty" = "Nothing saved for this message.";
+"lng_message_versions_edited" = "before editing";
+"lng_message_versions_deleted" = "before deletion";
+"lng_context_message_versions" = "Show message history";
+"lng_deleted_badge" = "deleted";
+"lng_menu_ghost_mode" = "Ghost mode";
+"lng_menu_streamer_mode" = "Streamer mode";
 "lng_settings_pull_to_next_channel" = "Swipe to the next unread channel";
 
 "lng_settings_shortcuts" = "Keyboard shortcuts";

@@ -162,6 +162,15 @@ void AddEphemeralMessageActions(
 	not_null<Ui::PopupMenu*> menu,
 	std::shared_ptr<Ui::Show> show,
 	not_null<HistoryItem*> item);
+
+// Used by both the main chat menu and the list sections.
+void AddMarkAsReadAction(
+	not_null<Ui::PopupMenu*> menu,
+	not_null<HistoryItem*> item);
+void AddMessageVersionsAction(
+	not_null<Ui::PopupMenu*> menu,
+	std::shared_ptr<Ui::Show> show,
+	not_null<HistoryItem*> item);
 void AddEphemeralAboutAction(
 	not_null<Ui::PopupMenu*> menu,
 	not_null<HistoryItem*> item);

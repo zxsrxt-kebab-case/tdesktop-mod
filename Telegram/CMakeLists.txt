@@ -552,6 +552,8 @@ PRIVATE
     core/crash_reports.cpp
     core/crash_reports.h
     core/credits_amount.h
+    core/data_directory.cpp
+    core/data_directory.h
     core/deadlock_detector.h
     core/deep_links/deep_links_chats.cpp
     core/deep_links/deep_links_chats.h
@@ -578,6 +580,10 @@ PRIVATE
     core/sandbox.h
     core/shortcuts.cpp
     core/shortcuts.h
+    core/streamer_mode.cpp
+    core/streamer_mode.h
+    core/time_format.cpp
+    core/time_format.h
     core/ui_integration.cpp
     core/ui_integration.h
     core/update_checker.cpp
@@ -705,6 +711,8 @@ PRIVATE
     data/data_media_preload.h
     data/data_media_rotation.cpp
     data/data_media_rotation.h
+    data/data_message_versions.cpp
+    data/data_message_versions.h
     data/data_media_types.cpp
     data/data_media_types.h
     # data/data_messages.cpp
@@ -1044,6 +1052,8 @@ PRIVATE
     history/view/history_view_list_widget.cpp
     history/view/history_view_list_widget.h
     history/view/history_view_message.cpp
+    history/view/history_view_message_versions.cpp
+    history/view/history_view_message_versions.h
     history/view/history_view_message.h
     history/view/history_view_object.h
     history/view/history_view_paid_reaction_toast.cpp
@@ -1797,6 +1807,8 @@ PRIVATE
     settings/sections/settings_local_storage.h
     settings/sections/settings_main.cpp
     settings/sections/settings_main.h
+    settings/sections/settings_modifications.cpp
+    settings/sections/settings_modifications.h
     settings/settings_recent_searches.cpp
     settings/settings_recent_searches.h
     settings/settings_search.cpp
