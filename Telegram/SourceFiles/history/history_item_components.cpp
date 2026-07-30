@@ -730,19 +730,31 @@ ReplyMarkupClickHandler::ReplyMarkupClickHandler(
 }
 
 QString ReplyMarkupClickHandler::dragText() const {
-	const auto button = getUrlButton();
-	return button ? QString::fromUtf8(button->data) : QString();
+	if (const auto button = getUrlButton()) {
+		return QString::fromUtf8(button->data);
+	} else if (const auto button = getCallbackButton()) {
+		return QString::fromUtf8(button->data);
+	}
+	return QString();
 }
 
 // Copy to clipboard support.
 QString ReplyMarkupClickHandler::copyToClipboardText() const {
-	const auto button = getUrlButton();
-	return button ? QString::fromUtf8(button->data) : QString();
+	if (const auto button = getUrlButton()) {
+		return QString::fromUtf8(button->data);
+	} else if (const auto button = getCallbackButton()) {
+		return QString::fromUtf8(button->data);
+	}
+	return QString();
 }
 
 QString ReplyMarkupClickHandler::copyToClipboardContextItemText() const {
-	const auto button = getUrlButton();
-	return button ? tr::lng_context_copy_link(tr::now) : QString();
+	if (getUrlButton()) {
+		return tr::lng_context_copy_link(tr::now);
+	} else if (getCallbackButton()) {
+		return tr::lng_context_copy_callback_data(tr::now);
+	}
+	return QString();
 }
 
 // Finds the corresponding button in the items markup struct.
@@ -758,6 +770,18 @@ auto ReplyMarkupClickHandler::getUrlButton() const
 	if (const auto button = getButton()) {
 		using Type = HistoryMessageMarkupButton::Type;
 		if (button->type == Type::Url || button->type == Type::Auth) {
+			return button;
+		}
+	}
+	return nullptr;
+}
+
+auto ReplyMarkupClickHandler::getCallbackButton() const
+-> const HistoryMessageMarkupButton* {
+	if (const auto button = getButton()) {
+		using Type = HistoryMessageMarkupButton::Type;
+		if (button->type == Type::Callback
+			|| button->type == Type::CallbackWithPassword) {
 			return button;
 		}
 	}
@@ -789,6 +813,12 @@ QString ReplyMarkupClickHandler::tooltip() const {
 				lt_text,
 				st::wrap_rtl(QString::fromUtf8(button->data)));
 		}
+	}
+	if (const auto button = getCallbackButton()) {
+		return tr::lng_bot_callback_data_tooltip(
+			tr::now,
+			lt_text,
+			st::wrap_rtl(QString::fromUtf8(button->data)));
 	}
 	const auto button = getUrlButton();
 	const auto url = button ? QString::fromUtf8(button->data) : QString();

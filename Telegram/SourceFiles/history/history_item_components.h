@@ -488,6 +488,7 @@ public:
 	const HistoryMessageMarkupButton *getButton() const;
 
 	const HistoryMessageMarkupButton *getUrlButton() const;
+	const HistoryMessageMarkupButton *getCallbackButton() const;
 
 	// We hold only FullMsgId, not HistoryItem*, because all click handlers
 	// are activated async and the item may be already destroyed.

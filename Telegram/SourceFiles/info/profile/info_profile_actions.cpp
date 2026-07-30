@@ -144,6 +144,7 @@ base::options::toggle ShowPeerIdBelowAbout({
 	.name = "Show Peer IDs in Profile",
 	.description = "Show peer IDs from API below their Bio / Description."
 		" Add contact IDs to exported data.",
+	.defaultValue = true,
 });
 
 base::options::toggle ShowChannelJoinedBelowAbout({
