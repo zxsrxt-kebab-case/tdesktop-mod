@@ -358,6 +358,8 @@ public:
 
 	void deleteConversationLocally(not_null<PeerData*> peer);
 
+	void refreshMessageTimeTexts();
+
 	[[nodiscard]] rpl::variable<bool> &contactsLoaded() {
 		return _contactsLoaded;
 	}

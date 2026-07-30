@@ -171,6 +171,12 @@ void Histories::clearAll() {
 	_map.clear();
 }
 
+void Histories::refreshMessageTimeTexts() {
+	for (const auto &[peerId, history] : _map) {
+		history->refreshMessageTimeTexts();
+	}
+}
+
 void Histories::readInbox(not_null<History*> history) {
 	DEBUG_LOG(("Reading: readInbox called."));
 	if (history->lastServerMessageKnown()) {
