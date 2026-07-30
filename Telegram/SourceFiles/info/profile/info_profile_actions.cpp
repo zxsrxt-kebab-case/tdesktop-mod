@@ -122,7 +122,6 @@ namespace Profile {
 namespace {
 
 constexpr auto kDay = Data::WorkingInterval::kDay;
-constexpr auto kPeerIdLinkIndex = uint16(1);
 
 class DraggableUrlClickHandler final : public UrlClickHandler {
 public:
@@ -250,30 +249,11 @@ base::options::toggle ShowChannelJoinedBelowAbout({
 	return AboutValue(
 		peer
 	) | rpl::map([=](TextWithEntities &&value) {
-		if (ShowPeerIdBelowAbout.value()) {
-			using namespace Ui::Text;
-			if (!value.empty()) {
-				value.append("\n\n");
-			}
-			value.append(Italic(u"id: "_q));
-			const auto raw = peer->id.value & PeerId::kChatTypeMask;
-			value.append(Link(
-				Italic(Lang::FormatCountDecimal(raw)),
-				kPeerIdLinkIndex));
-			if (const auto dc = PeerDcId(peer)) {
-				value.append(Italic(u"  dc: "_q));
-				value.append(Italic(QString::number(dc)));
-			}
-		}
 		if (ShowChannelJoinedBelowAbout.value()) {
 			if (const auto channel = peer->asChannel()) {
 				if (!channel->amCreator() && channel->inviteDate) {
 					if (!value.empty()) {
-						if (ShowPeerIdBelowAbout.value()) {
-							value.append("\n");
-						} else {
-							value.append("\n\n");
-						}
+						value.append("\n\n");
 					}
 					using namespace Ui::Text;
 					value.append((channel->isMegagroup()
@@ -293,22 +273,21 @@ base::options::toggle ShowChannelJoinedBelowAbout({
 	});
 }
 
-void SetupAboutPeerIdDrag(
-		not_null<Ui::FlatLabel*> label,
+[[nodiscard]] rpl::producer<TextWithEntities> PeerIdValue(
 		not_null<PeerData*> peer) {
-	if (!ShowPeerIdBelowAbout.value()) {
-		return;
-	}
-	const auto id = QString::number(peer->id.value & PeerId::kChatTypeMask);
-	AboutValue(
+	return AboutValue(
 		peer
-	) | rpl::on_next([=] {
-		label->setLink(
-			kPeerIdLinkIndex,
-			std::make_shared<DraggableUrlClickHandler>(
-				u"internal:~peer_id~:copy:"_q + id,
-				id));
-	}, label->lifetime());
+	) | rpl::map([=] {
+		using namespace Ui::Text;
+		auto label = TextWithEntities();
+		const auto raw = peer->id.value & PeerId::kChatTypeMask;
+		label.append(Lang::FormatCountDecimal(raw));
+		if (const auto dc = PeerDcId(peer)) {
+			label.append(' ').append(Ui::kQBullet).append(u" DC "_q);
+			label.append(QString::number(dc));
+		}
+		return TextWithEntities().append(Link(std::move(label), 1));
+	});
 }
 
 [[nodiscard]] bool AreNonTrivialHours(const Data::WorkingHours &hours) {
@@ -1490,20 +1469,6 @@ Section DetailsFiller::makeInfo() {
 		state->labelText = std::move(text);
 		label->setContextMenuHook([=](
 				Ui::FlatLabel::ContextMenuRequest request) {
-			if (request.link) {
-				const auto &url = request.link->url();
-				if (url.startsWith(u"internal:~peer_id~:"_q)) {
-					const auto weak = base::make_weak(controller);
-					request.menu->addAction(u"Copy ID"_q, [=] {
-						Core::App().openInternalUrl(
-							url,
-							QVariant::fromValue(ClickHandlerContext{
-								.sessionWindow = weak,
-							}));
-					});
-					return;
-				}
-			}
 			label->fillContextMenu(request);
 			if (Ui::SkipTranslate(state->labelText.current())) {
 				return;
@@ -1702,7 +1667,40 @@ Section DetailsFiller::makeInfo() {
 			std::move(label),
 			AboutWithAdvancedValue(user));
 		addTranslateToMenu(about.text, AboutWithAdvancedValue(user));
-		SetupAboutPeerIdDrag(about.text, user);
+
+		if (ShowPeerIdBelowAbout.value()) {
+			const auto idLabel = addInfoOneLine(
+				tr::lng_info_id_label(),
+				PeerIdValue(user),
+				QString()).text;
+			const auto rawId = QString::number(
+				user->id.value & PeerId::kChatTypeMask);
+			const auto copyId = [=] {
+				TextUtilities::SetClipboardText({ rawId });
+				if (const auto strong = weak.get()) {
+					strong->showToast(tr::lng_context_id_copied(tr::now));
+				}
+			};
+			idLabel->overrideLinkClickHandler(copyId);
+			PeerIdValue(user) | rpl::on_next([=] {
+				idLabel->setLink(
+					1,
+					std::make_shared<DraggableUrlClickHandler>(
+						u"internal:~peer_id~:copy:"_q + rawId,
+						rawId));
+			}, idLabel->lifetime());
+			idLabel->setContextMenuHook([=](
+					Ui::FlatLabel::ContextMenuRequest request) {
+				if (request.selection.empty()) {
+					request.menu->addAction(
+						tr::lng_context_copy_id(tr::now),
+						copyId,
+						&st::menuIconCopy);
+				} else {
+					idLabel->fillContextMenu(request);
+				}
+			});
+		}
 
 		const auto usernameLine = addInfoOneLine(
 			UsernamesSubtext(_peer, tr::lng_info_username_label()),
@@ -1867,7 +1865,39 @@ Section DetailsFiller::makeInfo() {
 			: AboutWithAdvancedValue(_peer));
 		if (!_topic) {
 			addTranslateToMenu(about.text, AboutWithAdvancedValue(_peer));
-			SetupAboutPeerIdDrag(about.text, _peer);
+			if (ShowPeerIdBelowAbout.value()) {
+				const auto idLabel = addInfoOneLine(
+					tr::lng_info_id_label(),
+					PeerIdValue(_peer),
+					QString()).text;
+				const auto rawId = QString::number(
+					_peer->id.value & PeerId::kChatTypeMask);
+				const auto copyId = [=] {
+					TextUtilities::SetClipboardText({ rawId });
+					if (const auto strong = weak.get()) {
+						strong->showToast(tr::lng_context_id_copied(tr::now));
+					}
+				};
+				idLabel->overrideLinkClickHandler(copyId);
+				PeerIdValue(_peer) | rpl::on_next([=] {
+					idLabel->setLink(
+						1,
+						std::make_shared<DraggableUrlClickHandler>(
+							u"internal:~peer_id~:copy:"_q + rawId,
+							rawId));
+				}, idLabel->lifetime());
+				idLabel->setContextMenuHook([=](
+						Ui::FlatLabel::ContextMenuRequest request) {
+					if (request.selection.empty()) {
+						request.menu->addAction(
+							tr::lng_context_copy_id(tr::now),
+							copyId,
+							&st::menuIconCopy);
+					} else {
+						idLabel->fillContextMenu(request);
+					}
+				});
+			}
 		}
 	}
 	raw->toggleOn(tracker.atLeastOneShownValue());
