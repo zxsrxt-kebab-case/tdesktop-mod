@@ -19,6 +19,14 @@ class SessionNavigation;
 
 namespace Api {
 
+struct MessageToSend;
+
+// A message the server has deleted has no id left to reply to, and neither do
+// the local copies we restore after a restart. Rather than let the send fail
+// with MESSAGE_ID_INVALID, fold the original into the outgoing text as a
+// quote and send an ordinary message.
+void RewriteReplyToDeletedAsQuote(MessageToSend &message);
+
 // True if there is anything we can rebuild a message out of.
 [[nodiscard]] bool CanRepost(not_null<HistoryItem*> item);
 

@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_sending.h"
 #include "apiwrap.h"
 #include "data/data_media_types.h"
+#include "data/data_message_versions.h"
 #include "data/data_peer.h"
 #include "data/data_session.h"
 #include "data/data_thread.h"
@@ -41,7 +42,41 @@ namespace {
 	return result;
 }
 
+// Either the server dropped it and we alone still show it, or it never had a
+// server id at all - one of our restored copies. Both are unreferenceable.
+[[nodiscard]] bool GoneFromServer(not_null<HistoryItem*> item) {
+	return !item->isRegular()
+		|| item->history()->owner().messageVersions().locallyDeleted(
+			item->fullId());
+}
+
 } // namespace
+
+void RewriteReplyToDeletedAsQuote(MessageToSend &message) {
+	const auto id = message.action.replyTo.messageId;
+	if (!id) {
+		return;
+	}
+	const auto item = message.action.history->owner().message(id);
+	if (!item || !GoneFromServer(item)) {
+		return;
+	}
+	auto text = ComposeQuote(item);
+	text.append(u"\n"_q).append(TextWithEntities{
+		message.textWithTags.text,
+		TextUtilities::ConvertTextTagsToEntities(message.textWithTags.tags),
+	});
+	message.textWithTags = TextWithTags{
+		text.text,
+		TextUtilities::ConvertEntitiesToTextTags(text.entities),
+	};
+
+	// topicRootId and monoforumPeerId say where the message goes, not what it
+	// answers, so they have to survive.
+	message.action.replyTo.messageId = FullMsgId();
+	message.action.replyTo.quote = {};
+	message.action.replyTo.quoteOffset = 0;
+}
 
 bool CanRepost(not_null<HistoryItem*> item) {
 	if (item->isService()) {

@@ -3007,6 +3007,9 @@ bool HistoryItem::allowsForward() const {
 	return !isService()
 		&& isRegular()
 		&& !forbidsForward()
+		// Deleted, and on screen only because we kept it there. The server
+		// would answer a forward of it with MESSAGE_ID_INVALID.
+		&& !_history->owner().messageVersions().locallyDeleted(fullId())
 		&& history()->peer->allowsForwarding()
 		&& (!_media || _media->allowsForward());
 }

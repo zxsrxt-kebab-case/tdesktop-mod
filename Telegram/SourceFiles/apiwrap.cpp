@@ -31,6 +31,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_updates.h"
 #include "api/api_user_privacy.h"
 #include "api/api_read_metrics.h"
+#include "api/api_repost.h"
 #include "api/api_views.h"
 #include "api/api_confirm_phone.h"
 #include "api/api_unread_things.h"
@@ -4594,6 +4595,8 @@ void ApiWrap::sendRichMessage(
 void ApiWrap::sendMessage(
 		MessageToSend &&message,
 		std::optional<MsgId> localMessageId) {
+	Api::RewriteReplyToDeletedAsQuote(message);
+
 	const auto history = message.action.history;
 	const auto peer = history->peer;
 	auto &textWithTags = message.textWithTags;
