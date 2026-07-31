@@ -32,6 +32,13 @@ public:
 	};
 
 	static constexpr auto kMaxAccounts = 3;
+
+	// Upstream allows kMaxAccounts, plus one per logged-in Premium account,
+	// capped at kPremiumMaxAccounts. That cap is enforced by the client
+	// alone - the servers accept the sessions either way, and the stock
+	// client can already go past it by running several copies with a
+	// different -workdir. Lifted here because doing that is just awkward.
+	static constexpr auto kMaxAccountsUnlocked = 100;
 	static constexpr auto kPremiumMaxAccounts = 6;
 
 	explicit Domain(const QString &dataName);
