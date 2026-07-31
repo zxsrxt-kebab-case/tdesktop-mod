@@ -1,3 +1,17 @@
+7.2.0 (31.07.26)
+
+- Rename the app to KebabClient.
+- Allow copying and saving in chats that restrict it.
+- Send a deleted or protected message as your own, with media.
+- Reply to a deleted message as a quote.
+- Remove the limit on the number of accounts.
+- Show peer ID and DC in profiles, copy them by click.
+- Copy bot callback data from the context menu.
+- Fix saved message versions being swept away on launch.
+- Fix message time not refreshing when the seconds setting changes.
+- Fix the profile ID being grouped into triads.
+- Fix forwarding a message the server has already deleted.
+
 7.0.6 (27.07.26)
 
 - Allow muting forever by left click on the profile mute button.
