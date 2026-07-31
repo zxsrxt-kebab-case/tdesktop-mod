@@ -281,7 +281,7 @@ base::options::toggle ShowChannelJoinedBelowAbout({
 		using namespace Ui::Text;
 		auto label = TextWithEntities();
 		const auto raw = peer->id.value & PeerId::kChatTypeMask;
-		label.append(Lang::FormatCountDecimal(raw));
+		label.append(QString::number(raw));
 		if (const auto dc = PeerDcId(peer)) {
 			label.append(' ').append(Ui::kQBullet).append(u" DC "_q);
 			label.append(QString::number(dc));
