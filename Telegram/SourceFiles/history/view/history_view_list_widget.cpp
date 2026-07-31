@@ -1809,7 +1809,9 @@ bool ListWidget::showCopyMediaRestriction(not_null<HistoryItem*> item) {
 }
 
 bool ListWidget::hasCopyRestrictionForSelected() const {
-	if (hasCopyRestriction()) {
+	if (Core::App().settings().unlockRestrictedContent()) {
+		return false;
+	} else if (hasCopyRestriction()) {
 		return true;
 	}
 	if (_selected.empty()) {
@@ -5970,6 +5972,9 @@ void ConfirmSendNowSelectedItems(not_null<ListWidget*> widget) {
 CopyRestrictionType CopyRestrictionTypeFor(
 		not_null<PeerData*> peer,
 		HistoryItem *item) {
+	if (Core::App().settings().unlockRestrictedContent()) {
+		return CopyRestrictionType::None;
+	}
 	return (peer->allowsForwarding() && (!item || !item->forbidsForward()))
 		? CopyRestrictionType::None
 		: peer->isUser()
@@ -5986,7 +5991,8 @@ CopyRestrictionType CopyMediaRestrictionTypeFor(
 		; all != CopyRestrictionType::None) {
 		return all;
 	}
-	return !item->forbidsSaving()
+	return (!item->forbidsSaving()
+		|| Core::App().settings().unlockRestrictedContent())
 		? CopyRestrictionType::None
 		: peer->isUser()
 		? CopyRestrictionType::User

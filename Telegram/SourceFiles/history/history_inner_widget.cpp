@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history_inner_widget.h"
 
 #include "api/api_polls.h"
+#include "api/api_repost.h"
 #include "chat_helpers/stickers_emoji_pack.h"
 #include "core/application.h"
 #include "core/file_utilities.h"
@@ -3421,6 +3422,11 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 					_menu->addAction(tr::lng_context_forward_msg(tr::now), [=] {
 						forwardItem(itemId);
 					}, &st::menuIconForward);
+				} else if (Api::CanRepost(item)) {
+					// A real forward is refused, so offer to send a copy.
+					_menu->addAction(tr::lng_context_repost(tr::now), [=] {
+						repostItem(itemId);
+					}, &st::menuIconForward);
 				}
 				if (HistoryView::CanAddOfferToMessage(item)) {
 					_menu->addAction(tr::lng_context_add_offer(tr::now), [=] {
@@ -3729,6 +3735,11 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 					_menu->addAction(tr::lng_context_forward_msg(tr::now), [=] {
 						forwardAsGroup(itemId);
 					}, &st::menuIconForward);
+				} else if (Api::CanRepost(item)) {
+					// A real forward is refused, so offer to send a copy.
+					_menu->addAction(tr::lng_context_repost(tr::now), [=] {
+						repostItem(itemId);
+					}, &st::menuIconForward);
 				}
 				if (HistoryView::CanAddOfferToMessage(item)) {
 					_menu->addAction(tr::lng_context_add_offer(tr::now), [=] {
@@ -3884,11 +3895,17 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 }
 
 bool HistoryInner::hasCopyRestriction(HistoryItem *item) const {
+	if (Core::App().settings().unlockRestrictedContent()) {
+		return false;
+	}
 	return !_peer->allowsForwarding() || (item && item->forbidsForward());
 }
 
 bool HistoryInner::hasCopyMediaRestriction(
 		not_null<HistoryItem*> item) const {
+	if (Core::App().settings().unlockRestrictedContent()) {
+		return false;
+	}
 	return hasCopyRestriction(item) || item->forbidsSaving();
 }
 
@@ -3917,7 +3934,9 @@ bool HistoryInner::showCopyMediaRestriction(not_null<HistoryItem*> item) {
 }
 
 bool HistoryInner::hasCopyRestrictionForSelected() const {
-	if (hasCopyRestriction()) {
+	if (Core::App().settings().unlockRestrictedContent()) {
+		return false;
+	} else if (hasCopyRestriction()) {
 		return true;
 	}
 	for (const auto &item : _selected) {
@@ -6170,6 +6189,12 @@ void HistoryInner::playPauseFocusedMedia() {
 
 void HistoryInner::forwardItem(FullMsgId itemId) {
 	Window::ShowForwardMessagesBox(_controller, { 1, itemId });
+}
+
+void HistoryInner::repostItem(FullMsgId itemId) {
+	if (const auto item = session().data().message(itemId)) {
+		Api::RepostMessage(_controller, item);
+	}
 }
 
 void HistoryInner::forwardAsGroup(FullMsgId itemId) {

@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_global_privacy.h"
 #include "api/api_polls.h"
 #include "api/api_report.h"
+#include "api/api_repost.h"
 #include "api/api_ringtones.h"
 #include "api/api_transcribes.h"
 #include "api/api_who_reacted.h"
@@ -446,12 +447,38 @@ bool AddForwardMessageAction(
 	return true;
 }
 
+// The server refuses to forward out of a chat that restricts saving content,
+// and the local copies we keep of deleted messages have no id to forward at
+// all. In both cases sending the contents anew is the only way out.
+void AddRepostMessageAction(
+		not_null<Ui::PopupMenu*> menu,
+		const ContextMenuRequest &request,
+		not_null<ListWidget*> list) {
+	const auto item = request.item;
+	if (!request.selectedItems.empty()
+		|| !item
+		|| item->allowsForward()
+		|| !Api::CanRepost(item)) {
+		return;
+	}
+	const auto owner = &item->history()->owner();
+	const auto itemId = item->fullId();
+	const auto navigation = request.navigation;
+	menu->addAction(tr::lng_context_repost(tr::now), [=] {
+		if (const auto item = owner->message(itemId)) {
+			Api::RepostMessage(navigation, item);
+		}
+	}, &st::menuIconForward);
+}
+
 void AddForwardAction(
 		not_null<Ui::PopupMenu*> menu,
 		const ContextMenuRequest &request,
 		not_null<ListWidget*> list) {
 	AddForwardSelectedAction(menu, request, list);
-	AddForwardMessageAction(menu, request, list);
+	if (!AddForwardMessageAction(menu, request, list)) {
+		AddRepostMessageAction(menu, request, list);
+	}
 }
 
 bool AddSendNowSelectedAction(

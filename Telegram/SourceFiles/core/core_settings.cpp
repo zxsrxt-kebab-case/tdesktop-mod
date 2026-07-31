@@ -349,7 +349,8 @@ QByteArray Settings::serialize() const {
 		+ sizeof(qint32) // _messageTimeSeconds
 		+ sizeof(qint32) // _streamerMode
 		+ sizeof(qint32) // _ghostMode
-		+ sizeof(qint32); // _saveMessageVersions
+		+ sizeof(qint32) // _saveMessageVersions
+		+ sizeof(qint32); // _unlockRestrictedContent
 
 	auto result = QByteArray();
 	result.reserve(size);
@@ -531,6 +532,7 @@ QByteArray Settings::serialize() const {
 		stream << qint32(_streamerMode.current() ? 1 : 0);
 		stream << qint32(_ghostMode.current() ? 1 : 0);
 		stream << qint32(_saveMessageVersions.current() ? 1 : 0);
+		stream << qint32(_unlockRestrictedContent.current() ? 1 : 0);
 	}
 
 	Ensures(result.size() == size);
@@ -643,6 +645,7 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 	qint32 streamerMode = _streamerMode.current() ? 1 : 0;
 	qint32 ghostMode = _ghostMode.current() ? 1 : 0;
 	qint32 saveMessageVersions = _saveMessageVersions.current() ? 1 : 0;
+	qint32 unlockRestrictedContent = _unlockRestrictedContent.current() ? 1 : 0;
 	qint32 legacySkipTranslationForLanguage = _translateButtonEnabled ? 1 : 0;
 	qint32 skipTranslationLanguagesCount = 0;
 	std::vector<LanguageId> skipTranslationLanguages;
@@ -1076,6 +1079,9 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 	if (!stream.atEnd()) {
 		stream >> saveMessageVersions;
 	}
+	if (!stream.atEnd()) {
+		stream >> unlockRestrictedContent;
+	}
 	if (stream.status() != QDataStream::Ok) {
 		LOG(("App Error: "
 			"Bad data for Core::Settings::constructFromSerialized()"));
@@ -1279,6 +1285,7 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 	_streamerMode = (streamerMode == 1);
 	_ghostMode = (ghostMode == 1);
 	_saveMessageVersions = (saveMessageVersions == 1);
+	_unlockRestrictedContent = (unlockRestrictedContent == 1);
 	{ // Parse the legacy translation setting.
 		if (legacySkipTranslationForLanguage == 0) {
 			_translateButtonEnabled = false;
@@ -1776,6 +1783,7 @@ void Settings::resetOnLastLogout() {
 	_streamerMode = false;
 	_ghostMode = false;
 	_saveMessageVersions = false;
+	_unlockRestrictedContent = false;
 	_pullToNextChannel = true;
 	_quickDialogAction = Dialogs::Ui::QuickDialogAction::Disabled;
 	_notificationsVolume = 100;

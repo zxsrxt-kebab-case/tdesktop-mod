@@ -19,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "calls/calls_instance.h"
 #include "core/application.h"
 #include "core/click_handler_types.h"
+#include "core/core_settings.h"
 #include "core/file_utilities.h"
 #include "core/mime_type.h"
 #include "core/ui_integration.h"
@@ -1310,6 +1311,9 @@ bool OverlayWidget::hasCopyMediaRestriction(bool skipPremiumCheck) const {
 		return skipPremiumCheck
 			? !story->canDownloadIfPremium()
 			: !story->canDownloadChecked();
+	}
+	if (Core::App().settings().unlockRestrictedContent()) {
+		return false;
 	}
 	return (_history && !_history->peer->allowsForwarding())
 		|| (_message && _message->forbidsSaving());

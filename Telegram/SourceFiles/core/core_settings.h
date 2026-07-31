@@ -533,6 +533,17 @@ public:
 	[[nodiscard]] rpl::producer<bool> saveMessageVersionsValue() const {
 		return _saveMessageVersions.value();
 	}
+	void setUnlockRestrictedContent(bool value) {
+		_unlockRestrictedContent = value;
+	}
+	// Ignore the "restrict saving content" flag of a chat or a message.
+	// Only lifts our own local checks, the server still refuses to forward.
+	[[nodiscard]] bool unlockRestrictedContent() const {
+		return _unlockRestrictedContent.current();
+	}
+	[[nodiscard]] rpl::producer<bool> unlockRestrictedContentValue() const {
+		return _unlockRestrictedContent.value();
+	}
 	[[nodiscard]] bool suggestEmoji() const {
 		return _suggestEmoji;
 	}
@@ -1182,6 +1193,7 @@ private:
 	rpl::variable<bool> _streamerMode = false;
 	rpl::variable<bool> _ghostMode = false;
 	rpl::variable<bool> _saveMessageVersions = false;
+	rpl::variable<bool> _unlockRestrictedContent = false;
 	bool _suggestEmoji = true;
 	bool _suggestStickersByEmoji = true;
 	bool _suggestAnimatedEmoji = true;

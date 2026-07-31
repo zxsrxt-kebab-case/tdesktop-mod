@@ -62,10 +62,25 @@ void BuildPrivacySection(SectionBuilder &builder) {
 			}, streamer->lifetime());
 		}
 	}
+
+	const auto unlock = builder.addCheckbox({
+		.id = u"modifications/unlock_restricted"_q,
+		.title = tr::lng_settings_unlock_restricted(),
+		.checked = Core::App().settings().unlockRestrictedContent(),
+		.keywords = { u"restricted"_q, u"protected"_q, u"copy"_q, u"save"_q,
+			u"noforwards"_q, u"forward"_q },
+	});
+	if (unlock) {
+		unlock->checkedChanges(
+		) | rpl::on_next([=](bool checked) {
+			Core::App().settings().setUnlockRestrictedContent(checked);
+			Core::App().saveSettingsDelayed();
+		}, unlock->lifetime());
+	}
+	builder.addDividerText(tr::lng_settings_unlock_restricted_about());
 }
 
 void BuildHistorySection(SectionBuilder &builder) {
-	builder.addDivider();
 	builder.addSubsectionTitle(tr::lng_settings_modifications_history());
 
 	const auto save = builder.addCheckbox({
