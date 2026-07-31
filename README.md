@@ -1,45 +1,79 @@
-# [Telegram Desktop][telegram_desktop] – Official Messenger
+# KebabClient
 
-This is the complete source code and the build instructions for the official [Telegram][telegram] messenger desktop client, based on the [Telegram API][telegram_api] and the [MTProto][telegram_proto] secure protocol.
+A fork of [Telegram Desktop][telegram_desktop] that keeps local data encrypted at rest, and adds the things the official client leaves out.
 
-[![Version](https://badge.fury.io/gh/telegramdesktop%2Ftdesktop.svg)](https://github.com/telegramdesktop/tdesktop/releases)
-[![Build Status](https://github.com/telegramdesktop/tdesktop/workflows/Windows./badge.svg)](https://github.com/telegramdesktop/tdesktop/actions)
-[![Build Status](https://github.com/telegramdesktop/tdesktop/workflows/MacOS./badge.svg)](https://github.com/telegramdesktop/tdesktop/actions)
-[![Build Status](https://github.com/telegramdesktop/tdesktop/workflows/Linux./badge.svg)](https://github.com/telegramdesktop/tdesktop/actions)
-[![Built with Depot](https://img.shields.io/badge/Built%20with-Depot.dev-46A75A)](https://depot.dev)
+Everything here is built on the stock facilities of tdesktop — the same local key, the same settings backend, the same message storage. There is no second database, no bundled SQLite, no forked `lib_ui`. That is deliberate: it keeps the diff against upstream small enough to rebase when a new version lands.
 
-[![Preview of Telegram Desktop][preview_image]][preview_image_url]
+**[Download the latest release][releases]** — Windows x64.
 
-The source code is published under GPLv3 with OpenSSL exception, the license is available [here][license].
+## Local data
 
-## Supported systems
+Out of the box, tdesktop encrypts `tdata` with a key that, without a passcode, is itself stored under an empty one. Copying the folder is then enough to take over the session, which is what every stealer does.
 
-The latest version is available for
+Here:
 
-* [Windows 7 and above (64 bit)](https://telegram.org/dl/desktop/win64) ([portable](https://telegram.org/dl/desktop/win64_portable))
-* [Windows 7 and above (32 bit)](https://telegram.org/dl/desktop/win) ([portable](https://telegram.org/dl/desktop/win_portable))
-* [macOS 10.13 and above](https://telegram.org/dl/desktop/mac)
-* [Linux static build for 64 bit](https://telegram.org/dl/desktop/linux)
-* [Snap](https://snapcraft.io/telegram-desktop)
-* [Flatpak](https://flathub.org/apps/details/org.telegram.desktop)
+- **A local passcode is required.** It is asked on every launch and cannot be turned off. The key is derived with PBKDF2-HMAC-SHA512, 100 000 iterations.
+- **The data directory has a random name.** A small `.data` pointer file records it; an existing `tdata` is moved in place on first launch. This alone stops nothing serious — malware can read the pointer too — but it does defeat the ones that blindly copy `<workdir>/tdata`.
 
-## Old system versions
+Forget the passcode and the local data is unrecoverable. You will have to log in again.
 
-Version **4.9.9** was the last that supports older systems
+## Modifications
 
-* [macOS 10.12](https://updates.tdesktop.com/tmac/tsetup.4.9.9.dmg)
-* [Linux with glibc < 2.28 static build](https://updates.tdesktop.com/tlinux/tsetup.4.9.9.tar.xz)
+All of it lives in its own **Modifications** section in Settings. Ghost mode and Streamer mode are also in the main side menu, next to Night mode.
 
-Version **2.4.4** was the last that supports older systems
+**Ghost mode** — no read receipts, no typing status, no online status, no story views, no post view counts. Mentions and reactions are still reported to the server, otherwise their unread badge could never clear. A **Mark as read** entry in the chat context menu sends the receipt when you actually want to.
 
-* [OS X 10.10 and 10.11](https://updates.tdesktop.com/tosx/tsetup-osx.2.4.4.dmg)
-* [Linux static build for 32 bit](https://updates.tdesktop.com/tlinux32/tsetup32.2.4.4.tar.xz)
+**Streamer mode** — windows are excluded from screen capture. Windows only; X11 and Wayland have no equivalent.
 
-Version **1.8.15** was the last that supports older systems
+**Message history** — keeps what a message said before it was edited or deleted. Records are appended to one file encrypted under the same key as the rest of your data, so appending costs the same however much has piled up. Deleted messages stay on screen with a `deleted` badge and are recreated as local messages after a restart. Messages with a self-destruct timer are never stored.
 
-* [Windows XP and Vista](https://updates.tdesktop.com/tsetup/tsetup.1.8.15.exe) ([portable](https://updates.tdesktop.com/tsetup/tportable.1.8.15.zip))
-* [OS X 10.8 and 10.9](https://updates.tdesktop.com/tmac/tsetup.1.8.15.dmg)
-* [OS X 10.6 and 10.7](https://updates.tdesktop.com/tmac32/tsetup32.1.8.15.dmg)
+**Allow copying and saving anywhere** — selecting text, *Save as*, downloads and the save button in the media viewer are refused by the client itself in chats that restrict saving, so this stops asking.
+
+**Seconds in message time** — `12:34:56` instead of `12:34`.
+
+## Getting content out of restricted chats
+
+Worth being precise, because two different obstacles look the same from the outside.
+
+Copying and saving are **client-side** checks. The setting above lifts them, and that is the whole story.
+
+Forwarding is **server-side**. Telegram refuses `messages.forwardMessages` out of a chat flagged `noforwards`, and no client change reaches that. The same applies to a deleted message: there is no id left to forward.
+
+So instead of a forward there is **Send as your own**, which rebuilds the message and sends it anew — the original text under a bold author line, all of it in a blockquote, with the media attached. It appears in place of *Forward* exactly when *Forward* would fail. Replying to a deleted message works the same way: the original is folded into your text as a quote and sent as an ordinary message.
+
+## Other changes
+
+- **No account limit.** Upstream allows three, plus one per logged-in Premium account, capped at six — a client-side cap the servers never enforced.
+- **Peer ID and datacenter** are shown in profiles. Click either to copy. Bot callback data can be copied from the context menu.
+
+## Not included
+
+From [AyuGram][ayugram], whose feature set this borrows from and reimplements rather than copies:
+
+- **Local Premium** — fakes a Premium badge locally. Useless, and arguably not legal.
+- **Ayu Sync** — syncing settings through a third-party server.
+- **Message shot** — screenshotting a message into an image.
+
+## Known limits
+
+- Restored deleted messages carry text only. Their media is not stored and is gone after a restart — the cache has no way to pin an entry, and that code lives in a submodule this fork cannot publish changes to.
+- Reposting a *deleted* message with media is unverified. The file is sent by reference, and that reference belongs to a message the server no longer has. It does work for protected channels, where the message is still alive.
+- Streamer mode does nothing outside Windows.
+- Only Windows builds are published. The source builds on Linux and macOS the same way upstream does.
+
+## Build instructions
+
+Unchanged from upstream:
+
+* [Windows (32-bit and 64-bit)][win]
+* [macOS][mac]
+* [GNU/Linux using Docker][linux]
+
+You will need your own `api_id` / `api_hash` from [my.telegram.org][my_telegram]; see [docs/api_credentials.md][api_credentials].
+
+## License
+
+GPLv3 with the OpenSSL exception, same as upstream — the license is [here][license]. This is an unofficial fork, not affiliated with Telegram.
 
 ## Third-party
 
@@ -67,33 +101,13 @@ Version **1.8.15** was the last that supports older systems
 * Hunspell ([LGPL](https://github.com/hunspell/hunspell/blob/master/COPYING.LESSER))
 * Ada ([Apache License 2.0](https://github.com/ada-url/ada/blob/main/LICENSE-APACHE))
 
-## Build instructions
-
-* [Windows (32-bit and 64-bit)][win]
-* [macOS][mac]
-* [GNU/Linux using Docker][linux]
-
 [//]: # (LINKS)
-[telegram]: https://telegram.org
-[telegram_desktop]: https://desktop.telegram.org
-[telegram_api]: https://core.telegram.org
-[telegram_proto]: https://core.telegram.org/mtproto
+[telegram_desktop]: https://github.com/telegramdesktop/tdesktop
+[ayugram]: https://github.com/AyuGram/AyuGramDesktop
+[releases]: https://github.com/zxsrxt-kebab-case/tdesktop-mod/releases/latest
 [license]: LICENSE
 [win]: docs/building-win.md
 [mac]: docs/building-mac.md
 [linux]: docs/building-linux.md
-[preview_image]: https://github.com/telegramdesktop/tdesktop/blob/dev/docs/assets/preview.png "Preview of Telegram Desktop"
-[preview_image_url]: https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/docs/assets/preview.png
-
-## Thanks to
-
-<a href="https://depot.dev">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://depot.dev/assets/brand/1693758816/depot-logo-horizontal-on-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="https://depot.dev/assets/brand/1693758816/depot-logo-horizontal-on-light.svg">
-    <img alt="Depot" src="https://depot.dev/assets/brand/1693758816/depot-logo-horizontal-on-light.svg" width="150">
-  </picture>
-</a>
-
-CI infrastructure sponsored by [Depot](https://depot.dev) — fast GitHub Actions runners.
-
+[api_credentials]: docs/api_credentials.md
+[my_telegram]: https://my.telegram.org
