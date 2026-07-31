@@ -280,6 +280,7 @@ base::flat_set<QString> Account::collectGoodNames() const {
 		"map1",
 		"maps",
 		"configs",
+		"msgversions",
 	};
 	const auto push = [&](FileKey key) {
 		if (!key) {
@@ -1181,10 +1182,11 @@ void Account::appendMessageVersion(const QByteArray &record) {
 }
 
 std::vector<QByteArray> Account::readMessageVersionRecords() {
+	const auto path = MessageVersionsPath(_basePath);
 	if (!_localKey) {
 		return {};
 	}
-	auto file = QFile(MessageVersionsPath(_basePath));
+	auto file = QFile(path);
 	if (!file.open(QIODevice::ReadOnly)) {
 		return {};
 	}

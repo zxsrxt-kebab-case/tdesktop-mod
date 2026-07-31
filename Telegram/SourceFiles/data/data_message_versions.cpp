@@ -208,9 +208,10 @@ void MessageVersions::restoreInto(not_null<History*> history) {
 					version.tags,
 					version.text.size())),
 		};
-		const auto item = history->addNewLocalMessage({
+		const auto item = history->makeMessage({
 			.id = owner->nextLocalMessageId(),
 			.flags = (MessageFlag::HistoryEntry
+				| MessageFlag::Local
 				| ((version.authorId == selfId)
 					? MessageFlag::Outgoing
 					: MessageFlag())
@@ -220,6 +221,10 @@ void MessageVersions::restoreInto(not_null<History*> history) {
 			.from = version.authorId,
 			.date = version.originalDate,
 		}, text, MTP_messageMediaEmpty());
+		DEBUG_LOG(("MessageVersions: restored %1_%2, date %3."
+			).arg(id.peer.value
+			).arg(id.msg.bare
+			).arg(version.originalDate));
 
 		// The recreated item has a new local id, so the badge has to follow.
 		markLocallyDeleted(item->fullId());
