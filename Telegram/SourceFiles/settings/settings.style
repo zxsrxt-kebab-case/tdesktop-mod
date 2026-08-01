@@ -10,6 +10,18 @@ using "ui/widgets/widgets.style";
 using "info/info.style";
 using "boxes/boxes.style";
 
+modificationsSliderLabel: LabelSimple(defaultLabelSimple) {
+	font: boxTextFont;
+}
+modificationsSliderValue: LabelSimple(modificationsSliderLabel) {
+	textFg: windowActiveTextFg;
+}
+modificationsSliderLabelMargin: margins(22px, 10px, 20px, 5px);
+modificationsSlider: MediaSlider(defaultContinuousSlider) {
+	seekSize: size(15px, 15px);
+}
+modificationsSliderMargin: margins(22px, 5px, 20px, 10px);
+
 settingsButton: SettingsButton(infoProfileButton) {
 	style: boxTextStyle;
 	padding: margins(60px, 10px, 22px, 10px);

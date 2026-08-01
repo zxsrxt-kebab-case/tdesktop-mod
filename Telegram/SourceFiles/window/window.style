@@ -58,6 +58,16 @@ notifyActionsDuration: 200;
 
 notifyHideAllHeight: 36px;
 
+// Compact notifications: a rounded card with the userpic and a single line
+// of text. No inline reply - there is no room for it, and the click opens
+// the chat anyway. Width, height and corner radius come from settings; the
+// rest is derived from them so a resized card still looks composed.
+notifyCompactPhotoSize: 36px;
+notifyCompactPhotoLeft: 10px;
+notifyCompactTextLeft: 10px;
+notifyCompactDeltaX: 12px;
+notifyCompactDeltaY: 8px;
+
 notifyReplyArea: InputField(defaultInputField) {
 	style: defaultTextStyle;
 	textMargins: margins(8px, 8px, 8px, 6px);

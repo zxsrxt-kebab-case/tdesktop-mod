@@ -544,6 +544,57 @@ public:
 	[[nodiscard]] rpl::producer<bool> unlockRestrictedContentValue() const {
 		return _unlockRestrictedContent.value();
 	}
+	void setCompactNotifications(bool value) {
+		_compactNotifications = value;
+	}
+	// Small rounded notifications stacking down from the top right corner,
+	// instead of the tall stock ones growing up from the bottom.
+	[[nodiscard]] bool compactNotifications() const {
+		return _compactNotifications.current();
+	}
+	[[nodiscard]] rpl::producer<bool> compactNotificationsValue() const {
+		return _compactNotifications.value();
+	}
+	static constexpr auto kCompactNotificationWidthMin = 240;
+	static constexpr auto kCompactNotificationWidthMax = 480;
+	static constexpr auto kCompactNotificationHeightMin = 44;
+	static constexpr auto kCompactNotificationHeightMax = 96;
+	static constexpr auto kCompactNotificationRadiusMax = 24;
+	void setCompactNotificationWidth(int value) {
+		_compactNotificationWidth = std::clamp(
+			value,
+			kCompactNotificationWidthMin,
+			kCompactNotificationWidthMax);
+	}
+	[[nodiscard]] int compactNotificationWidth() const {
+		return _compactNotificationWidth.current();
+	}
+	void setCompactNotificationHeight(int value) {
+		_compactNotificationHeight = std::clamp(
+			value,
+			kCompactNotificationHeightMin,
+			kCompactNotificationHeightMax);
+	}
+	[[nodiscard]] int compactNotificationHeight() const {
+		return _compactNotificationHeight.current();
+	}
+	void setCompactNotificationRadius(int value) {
+		_compactNotificationRadius = std::clamp(
+			value,
+			0,
+			kCompactNotificationRadiusMax);
+	}
+	[[nodiscard]] int compactNotificationRadius() const {
+		return _compactNotificationRadius.current();
+	}
+	// Any of them invalidates the notifications already on screen.
+	[[nodiscard]] rpl::producer<> notificationStyleChanges() const {
+		return rpl::merge(
+			_compactNotifications.changes() | rpl::to_empty,
+			_compactNotificationWidth.changes() | rpl::to_empty,
+			_compactNotificationHeight.changes() | rpl::to_empty,
+			_compactNotificationRadius.changes() | rpl::to_empty);
+	}
 	[[nodiscard]] bool suggestEmoji() const {
 		return _suggestEmoji;
 	}
@@ -1194,6 +1245,10 @@ private:
 	rpl::variable<bool> _ghostMode = false;
 	rpl::variable<bool> _saveMessageVersions = false;
 	rpl::variable<bool> _unlockRestrictedContent = false;
+	rpl::variable<bool> _compactNotifications = false;
+	rpl::variable<int> _compactNotificationWidth = 300;
+	rpl::variable<int> _compactNotificationHeight = 56;
+	rpl::variable<int> _compactNotificationRadius = 12;
 	bool _suggestEmoji = true;
 	bool _suggestStickersByEmoji = true;
 	bool _suggestAnimatedEmoji = true;

@@ -350,7 +350,11 @@ QByteArray Settings::serialize() const {
 		+ sizeof(qint32) // _streamerMode
 		+ sizeof(qint32) // _ghostMode
 		+ sizeof(qint32) // _saveMessageVersions
-		+ sizeof(qint32); // _unlockRestrictedContent
+		+ sizeof(qint32) // _unlockRestrictedContent
+		+ sizeof(qint32) // _compactNotifications
+		+ sizeof(qint32) // _compactNotificationWidth
+		+ sizeof(qint32) // _compactNotificationHeight
+		+ sizeof(qint32); // _compactNotificationRadius
 
 	auto result = QByteArray();
 	result.reserve(size);
@@ -533,6 +537,10 @@ QByteArray Settings::serialize() const {
 		stream << qint32(_ghostMode.current() ? 1 : 0);
 		stream << qint32(_saveMessageVersions.current() ? 1 : 0);
 		stream << qint32(_unlockRestrictedContent.current() ? 1 : 0);
+		stream << qint32(_compactNotifications.current() ? 1 : 0);
+		stream << qint32(_compactNotificationWidth.current());
+		stream << qint32(_compactNotificationHeight.current());
+		stream << qint32(_compactNotificationRadius.current());
 	}
 
 	Ensures(result.size() == size);
@@ -646,6 +654,10 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 	qint32 ghostMode = _ghostMode.current() ? 1 : 0;
 	qint32 saveMessageVersions = _saveMessageVersions.current() ? 1 : 0;
 	qint32 unlockRestrictedContent = _unlockRestrictedContent.current() ? 1 : 0;
+	qint32 compactNotifications = _compactNotifications.current() ? 1 : 0;
+	qint32 compactNotificationWidth = _compactNotificationWidth.current();
+	qint32 compactNotificationHeight = _compactNotificationHeight.current();
+	qint32 compactNotificationRadius = _compactNotificationRadius.current();
 	qint32 legacySkipTranslationForLanguage = _translateButtonEnabled ? 1 : 0;
 	qint32 skipTranslationLanguagesCount = 0;
 	std::vector<LanguageId> skipTranslationLanguages;
@@ -1082,6 +1094,14 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 	if (!stream.atEnd()) {
 		stream >> unlockRestrictedContent;
 	}
+	if (!stream.atEnd()) {
+		stream >> compactNotifications;
+	}
+	if (!stream.atEnd()) {
+		stream >> compactNotificationWidth
+			>> compactNotificationHeight
+			>> compactNotificationRadius;
+	}
 	if (stream.status() != QDataStream::Ok) {
 		LOG(("App Error: "
 			"Bad data for Core::Settings::constructFromSerialized()"));
@@ -1286,6 +1306,10 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 	_ghostMode = (ghostMode == 1);
 	_saveMessageVersions = (saveMessageVersions == 1);
 	_unlockRestrictedContent = (unlockRestrictedContent == 1);
+	_compactNotifications = (compactNotifications == 1);
+	setCompactNotificationWidth(compactNotificationWidth);
+	setCompactNotificationHeight(compactNotificationHeight);
+	setCompactNotificationRadius(compactNotificationRadius);
 	{ // Parse the legacy translation setting.
 		if (legacySkipTranslationForLanguage == 0) {
 			_translateButtonEnabled = false;
@@ -1784,6 +1808,10 @@ void Settings::resetOnLastLogout() {
 	_ghostMode = false;
 	_saveMessageVersions = false;
 	_unlockRestrictedContent = false;
+	_compactNotifications = false;
+	_compactNotificationWidth = 300;
+	_compactNotificationHeight = 56;
+	_compactNotificationRadius = 12;
 	_pullToNextChannel = true;
 	_quickDialogAction = Dialogs::Ui::QuickDialogAction::Disabled;
 	_notificationsVolume = 100;

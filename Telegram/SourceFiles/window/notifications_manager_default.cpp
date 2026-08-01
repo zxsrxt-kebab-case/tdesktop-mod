@@ -43,6 +43,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_window.h"
 
 #include <QtGui/QGuiApplication>
+#include <QtGui/QPainterPath>
 #include <QtGui/QScreen>
 
 namespace Window {
@@ -50,20 +51,94 @@ namespace Notifications {
 namespace Default {
 namespace {
 
+[[nodiscard]] bool NotifyCompact() {
+	return Core::App().settings().compactNotifications();
+}
+
+[[nodiscard]] int NotifyWidth() {
+	return NotifyCompact()
+		? Core::App().settings().compactNotificationWidth()
+		: st::notifyWidth;
+}
+
+[[nodiscard]] int NotifyMinHeight() {
+	return NotifyCompact()
+		? Core::App().settings().compactNotificationHeight()
+		: st::notifyMinHeight;
+}
+
+// Zero means square corners, which is what the stock notification has.
+[[nodiscard]] int NotifyRadius() {
+	return NotifyCompact()
+		? Core::App().settings().compactNotificationRadius()
+		: 0;
+}
+
+[[nodiscard]] int NotifyPhotoSize() {
+	return NotifyCompact() ? st::notifyCompactPhotoSize : st::notifyPhotoSize;
+}
+
+[[nodiscard]] QPoint NotifyPhotoPos() {
+	if (!NotifyCompact()) {
+		return st::notifyPhotoPos;
+	}
+	// Centred, so that a card resized through settings still looks composed.
+	const auto size = st::notifyCompactPhotoSize;
+	return QPoint(
+		st::notifyCompactPhotoLeft,
+		(NotifyMinHeight() - size) / 2);
+}
+
+[[nodiscard]] int NotifyTextLeft() {
+	return NotifyCompact() ? st::notifyCompactTextLeft : st::notifyTextLeft;
+}
+
+[[nodiscard]] int NotifyTitleTop() {
+	if (!NotifyCompact()) {
+		return st::notifyTextTop;
+	}
+	const auto lines = st::semiboldFont->height + st::dialogsTextFont->height;
+	return (NotifyMinHeight() - lines) / 2;
+}
+
+[[nodiscard]] int NotifyTextTop() {
+	return NotifyCompact()
+		? (NotifyTitleTop() + st::semiboldFont->height)
+		: (st::notifyItemTop + st::semiboldFont->height);
+}
+
+// A compact card fits one line; the stock one has room for two.
+[[nodiscard]] int NotifyTextLines() {
+	return NotifyCompact() ? 1 : 2;
+}
+
+[[nodiscard]] int NotifyDeltaX() {
+	return NotifyCompact() ? st::notifyCompactDeltaX : st::notifyDeltaX;
+}
+
+[[nodiscard]] int NotifyDeltaY() {
+	return NotifyCompact() ? st::notifyCompactDeltaY : st::notifyDeltaY;
+}
+
 [[nodiscard]] QPoint notificationStartPosition() {
+	const auto compact = NotifyCompact();
 	const auto corner = Core::App().settings().notificationsCorner();
 	const auto r = NotificationDisplayRect(Core::App().activePrimaryWindow());
-	const auto isLeft = Core::Settings::IsLeftCorner(corner);
-	const auto isTop = Core::Settings::IsTopCorner(corner);
+	// Compact cards always hang from the top right and grow downwards, which
+	// is the whole point of the style - the corner setting is for the stock one.
+	const auto isLeft = !compact && Core::Settings::IsLeftCorner(corner);
+	const auto isTop = compact || Core::Settings::IsTopCorner(corner);
 	const auto x = (isLeft == rtl())
-		? (r.x() + r.width() - st::notifyWidth - st::notifyDeltaX)
-		: (r.x() + st::notifyDeltaX);
+		? (r.x() + r.width() - NotifyWidth() - NotifyDeltaX())
+		: (r.x() + NotifyDeltaX());
 	const auto y = isTop ? r.y() : (r.y() + r.height());
 	return QPoint(x, y);
 }
 
 internal::Widget::Direction notificationShiftDirection() {
-	auto isTop = Core::Settings::IsTopCorner(Core::App().settings().notificationsCorner());
+	const auto isTop = NotifyCompact()
+		|| Core::Settings::IsTopCorner(
+			Core::App().settings().notificationsCorner());
 	return isTop ? internal::Widget::Direction::Down : internal::Widget::Direction::Up;
 }
 
@@ -79,6 +154,13 @@ Manager::Manager(System *system)
 	system->settingsChanged(
 	) | rpl::on_next([=](ChangeType change) {
 		settingsChanged(change);
+	}, _lifetime);
+
+	// Cards already on screen were laid out for the previous style and cannot
+	// be reflowed in place, so drop them and let the next one come up right.
+	Core::App().settings().notificationStyleChanges(
+	) | rpl::on_next([=] {
+		doClearAllFast();
 	}, _lifetime);
 }
 
@@ -281,14 +363,14 @@ void Manager::subscribeToSession(not_null<Main::Session*> session) {
 }
 
 void Manager::moveWidgets() {
-	auto shift = st::notifyDeltaY;
+	auto shift = NotifyDeltaY();
 	int lastShift = 0, lastShiftCurrent = 0, count = 0;
 	for (int i = _notifications.size(); i != 0;) {
 		auto &notification = _notifications[--i];
 		if (notification->isUnlinked()) continue;
 
 		notification->changeShift(shift);
-		shift += notification->height() + st::notifyDeltaY;
+		shift += notification->height() + NotifyDeltaY();
 
 		lastShiftCurrent = notification->currentShift();
 		lastShift = shift;
@@ -501,7 +583,14 @@ Widget::Widget(
 		| Qt::NoDropShadowWindowHint
 		| Qt::Tool);
 	setAttribute(Qt::WA_MacAlwaysShowToolWindow);
-	setAttribute(Qt::WA_OpaquePaintEvent);
+
+	// Rounded corners need the space outside them to stay see-through, which
+	// an opaque paint event would have filled in.
+	if (NotifyRadius() > 0) {
+		setAttribute(Qt::WA_TranslucentBackground);
+	} else {
+		setAttribute(Qt::WA_OpaquePaintEvent);
+	}
 
 	Ui::Platform::InitOnTopPanel(this);
 
@@ -676,8 +765,8 @@ Notification::Notification(
 		}, lifetime());
 	}
 
-	auto position = computePosition(st::notifyMinHeight);
-	updateGeometry(position.x(), position.y(), st::notifyWidth, st::notifyMinHeight);
+	auto position = computePosition(NotifyMinHeight());
+	updateGeometry(position.x(), position.y(), NotifyWidth(), NotifyMinHeight());
 
 	_userpicLoaded = !Ui::PeerUserpicLoading(_userpicView);
 	updateNotifyDisplay();
@@ -695,7 +784,7 @@ Notification::Notification(
 	_reply->setClickedCallback([this] {
 		showReplyField();
 	});
-	_replyPadding = st::notifyMinHeight - st::notifyPhotoPos.y() - st::notifyPhotoSize;
+	_replyPadding = NotifyMinHeight() - NotifyPhotoPos().y() - NotifyPhotoSize();
 	updateReplyGeometry();
 	_reply->hide();
 
@@ -775,11 +864,12 @@ void Notification::replyCancel() {
 }
 
 void Notification::updateGeometry(int x, int y, int width, int height) {
-	if (height > st::notifyMinHeight) {
+	const auto minHeight = NotifyMinHeight();
+	if (height > minHeight) {
 		if (!_background) {
 			_background.create(this);
 		}
-		_background->setGeometry(0, st::notifyMinHeight, width, height - st::notifyMinHeight);
+		_background->setGeometry(0, minHeight, width, height - minHeight);
 	} else if (_background) {
 		_background.destroy();
 	}
@@ -874,42 +964,66 @@ void Notification::updateNotifyDisplay() {
 		(_reaction.empty()
 			? Data::ItemNotificationType::Message
 			: Data::ItemNotificationType::Reaction));
-	_hideReplyButton = options.hideReplyButton;
+	// A compact card has no room for the inline reply, and clicking it opens
+	// the chat anyway.
+	_hideReplyButton = options.hideReplyButton || NotifyCompact();
 
+	const auto photoPos = NotifyPhotoPos();
+	const auto photoSize = NotifyPhotoSize();
+	const auto textLeft = photoPos.x() + photoSize + NotifyTextLeft();
+	const auto radius = NotifyRadius();
 	int32 w = width(), h = height();
 	auto img = QImage(
 		size() * style::DevicePixelRatio(),
 		QImage::Format_ARGB32_Premultiplied);
 	img.setDevicePixelRatio(style::DevicePixelRatio());
-	img.fill(st::notificationBg->c);
+	img.fill(radius ? QColor(Qt::transparent) : st::notificationBg->c);
 
 	{
 		Painter p(&img);
-		p.fillRect(0, 0, w - st::notifyBorderWidth, st::notifyBorderWidth, st::notifyBorder);
-		p.fillRect(w - st::notifyBorderWidth, 0, st::notifyBorderWidth, h - st::notifyBorderWidth, st::notifyBorder);
-		p.fillRect(st::notifyBorderWidth, h - st::notifyBorderWidth, w - st::notifyBorderWidth, st::notifyBorderWidth, st::notifyBorder);
-		p.fillRect(0, st::notifyBorderWidth, st::notifyBorderWidth, h - st::notifyBorderWidth, st::notifyBorder);
+		if (radius > 0) {
+			auto hq = PainterHighQualityEnabler(p);
+			const auto outer = QRectF(0, 0, w, h);
+			const auto half = st::notifyBorderWidth / 2.;
+			p.setPen(Qt::NoPen);
+			p.setBrush(st::notificationBg);
+			p.drawRoundedRect(outer, radius, radius);
+			p.setBrush(Qt::NoBrush);
+			p.setPen(QPen(st::notifyBorder->c, st::notifyBorderWidth));
+			p.drawRoundedRect(
+				outer.marginsRemoved({ half, half, half, half }),
+				radius - half,
+				radius - half);
+			auto clip = QPainterPath();
+			clip.addRoundedRect(outer, radius, radius);
+			p.setClipPath(clip);
+		} else {
+			p.fillRect(0, 0, w - st::notifyBorderWidth, st::notifyBorderWidth, st::notifyBorder);
+			p.fillRect(w - st::notifyBorderWidth, 0, st::notifyBorderWidth, h - st::notifyBorderWidth, st::notifyBorder);
+			p.fillRect(st::notifyBorderWidth, h - st::notifyBorderWidth, w - st::notifyBorderWidth, st::notifyBorderWidth, st::notifyBorder);
+			p.fillRect(0, st::notifyBorderWidth, st::notifyBorderWidth, h - st::notifyBorderWidth, st::notifyBorder);
+		}
 
 		if (!options.hideNameAndPhoto) {
 			if (_fromScheduled && _history->peer->isSelf()) {
-				Ui::EmptyUserpic::PaintSavedMessages(p, st::notifyPhotoPos.x(), st::notifyPhotoPos.y(), width(), st::notifyPhotoSize);
+				Ui::EmptyUserpic::PaintSavedMessages(p, photoPos.x(), photoPos.y(), width(), photoSize);
 				_userpicLoaded = true;
 			} else if (_history->peer->isRepliesChat()) {
-				Ui::EmptyUserpic::PaintRepliesMessages(p, st::notifyPhotoPos.x(), st::notifyPhotoPos.y(), width(), st::notifyPhotoSize);
+				Ui::EmptyUserpic::PaintRepliesMessages(p, photoPos.x(), photoPos.y(), width(), photoSize);
 				_userpicLoaded = true;
 			} else {
 				_userpicView = _history->peer->createUserpicView();
 				_history->peer->loadUserpic();
-				_history->peer->paintUserpicLeft(p, _userpicView, st::notifyPhotoPos.x(), st::notifyPhotoPos.y(), width(), st::notifyPhotoSize);
+				_history->peer->paintUserpicLeft(p, _userpicView, photoPos.x(), photoPos.y(), width(), photoSize);
 			}
 		} else {
-			p.drawPixmap(st::notifyPhotoPos.x(), st::notifyPhotoPos.y(), manager()->hiddenUserpicPlaceholder());
+			p.drawPixmap(photoPos.x(), photoPos.y(), manager()->hiddenUserpicPlaceholder());
 			_userpicLoaded = true;
 		}
 
-		int32 itemWidth = w - st::notifyPhotoPos.x() - st::notifyPhotoSize - st::notifyTextLeft - st::notifyClosePos.x() - st::notifyClose.width;
+		int32 itemWidth = w - textLeft - st::notifyClosePos.x() - st::notifyClose.width;
 
-		QRect rectForName(st::notifyPhotoPos.x() + st::notifyPhotoSize + st::notifyTextLeft, st::notifyTextTop, itemWidth, st::semiboldFont->height);
+		QRect rectForName(textLeft, NotifyTitleTop(), itemWidth, st::semiboldFont->height);
 		const auto reminder = _fromScheduled && _history->peer->isSelf();
 		if (!options.hideNameAndPhoto) {
 			if (_fromScheduled) {
@@ -937,10 +1051,10 @@ void Notification::updateNotifyDisplay() {
 			auto old = base::take(_textCache);
 			_textCache = Ui::Text::String(itemWidth);
 			auto r = QRect(
-				st::notifyPhotoPos.x() + st::notifyPhotoSize + st::notifyTextLeft,
-				st::notifyItemTop + st::semiboldFont->height,
+				textLeft,
+				NotifyTextTop(),
 				itemWidth,
-				2 * st::dialogsTextFont->height);
+				NotifyTextLines() * st::dialogsTextFont->height);
 			const auto text = !_reaction.empty()
 				? (!_author.isEmpty()
 					? Ui::Text::Colorized(_author).append(' ')
@@ -990,8 +1104,8 @@ void Notification::updateNotifyDisplay() {
 			p.setFont(st::dialogsTextFont);
 			p.setPen(st::dialogsTextFgService);
 			p.drawText(
-				st::notifyPhotoPos.x() + st::notifyPhotoSize + st::notifyTextLeft,
-				st::notifyItemTop + st::semiboldFont->height + st::dialogsTextFont->ascent,
+				textLeft,
+				NotifyTextTop() + st::dialogsTextFont->ascent,
 				st::dialogsTextFont->elided(
 					tr::lng_notification_preview(tr::now),
 					itemWidth));
@@ -1041,21 +1155,21 @@ void Notification::updatePeerPhoto() {
 	}
 	_userpicLoaded = true;
 
+	const auto photoPos = NotifyPhotoPos();
+	const auto photoSize = NotifyPhotoSize();
 	Painter p(&_cache);
 	p.fillRect(
 		style::rtlrect(
-			QRect(
-				st::notifyPhotoPos,
-				QSize(st::notifyPhotoSize, st::notifyPhotoSize)),
+			QRect(photoPos, QSize(photoSize, photoSize)),
 			width()),
 		st::notificationBg);
 	_peer->paintUserpicLeft(
 		p,
 		_userpicView,
-		st::notifyPhotoPos.x(),
-		st::notifyPhotoPos.y(),
+		photoPos.x(),
+		photoPos.y(),
 		width(),
-		st::notifyPhotoSize);
+		photoSize);
 	_userpicView = {};
 	update();
 }
@@ -1272,7 +1386,7 @@ HideAllButton::HideAllButton(
 	setCursor(style::cur_pointer);
 
 	auto position = computePosition(st::notifyHideAllHeight);
-	updateGeometry(position.x(), position.y(), st::notifyWidth, st::notifyHideAllHeight);
+	updateGeometry(position.x(), position.y(), NotifyWidth(), st::notifyHideAllHeight);
 
 	style::PaletteChanged(
 	) | rpl::on_next([=] {
@@ -1319,11 +1433,28 @@ void HideAllButton::paintEvent(QPaintEvent *e) {
 	Painter p(this);
 	p.setClipRect(e->rect());
 
-	p.fillRect(rect(), _mouseOver ? st::lightButtonBgOver : st::lightButtonBg);
-	p.fillRect(0, 0, width(), st::notifyBorderWidth, st::notifyBorder);
-	p.fillRect(0, height() - st::notifyBorderWidth, width(), st::notifyBorderWidth, st::notifyBorder);
-	p.fillRect(0, st::notifyBorderWidth, st::notifyBorderWidth, height() - 2 * st::notifyBorderWidth, st::notifyBorder);
-	p.fillRect(width() - st::notifyBorderWidth, st::notifyBorderWidth, st::notifyBorderWidth, height() - 2 * st::notifyBorderWidth, st::notifyBorder);
+	const auto radius = NotifyRadius();
+	const auto bg = _mouseOver ? st::lightButtonBgOver : st::lightButtonBg;
+	if (radius > 0) {
+		auto hq = PainterHighQualityEnabler(p);
+		const auto outer = QRectF(0, 0, width(), height());
+		const auto half = st::notifyBorderWidth / 2.;
+		p.setPen(Qt::NoPen);
+		p.setBrush(bg);
+		p.drawRoundedRect(outer, radius, radius);
+		p.setBrush(Qt::NoBrush);
+		p.setPen(QPen(st::notifyBorder->c, st::notifyBorderWidth));
+		p.drawRoundedRect(
+			outer.marginsRemoved({ half, half, half, half }),
+			radius - half,
+			radius - half);
+	} else {
+		p.fillRect(rect(), bg);
+		p.fillRect(0, 0, width(), st::notifyBorderWidth, st::notifyBorder);
+		p.fillRect(0, height() - st::notifyBorderWidth, width(), st::notifyBorderWidth, st::notifyBorder);
+		p.fillRect(0, st::notifyBorderWidth, st::notifyBorderWidth, height() - 2 * st::notifyBorderWidth, st::notifyBorder);
+		p.fillRect(width() - st::notifyBorderWidth, st::notifyBorderWidth, st::notifyBorderWidth, height() - 2 * st::notifyBorderWidth, st::notifyBorder);
+	}
 
 	p.setFont(st::defaultLinkButton.font);
 	p.setPen(_mouseOver ? st::lightButtonFgOver : st::lightButtonFg);

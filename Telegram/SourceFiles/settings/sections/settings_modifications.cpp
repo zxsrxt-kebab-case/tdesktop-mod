@@ -17,6 +17,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/sections/settings_main.h"
 #include "ui/vertical_list.h"
 #include "ui/widgets/checkbox.h"
+#include "ui/widgets/continuous_sliders.h"
+#include "ui/widgets/labels.h"
+#include "ui/wrap/padding_wrap.h"
 #include "ui/wrap/vertical_layout.h"
 #include "ui/ui_utility.h"
 #include "styles/style_menu_icons.h"
@@ -80,6 +83,145 @@ void BuildPrivacySection(SectionBuilder &builder) {
 	builder.addDividerText(tr::lng_settings_unlock_restricted_about());
 }
 
+// A titled slider over a range of pixel sizes, laid out the way the local
+// storage limits are: name on the left, current value on the right.
+void AddSizeSlider(
+		SectionBuilder &builder,
+		const QString &id,
+		rpl::producer<QString> title,
+		QString label,
+		QStringList keywords,
+		rpl::producer<bool> shown,
+		int min,
+		int max,
+		int step,
+		int startValue,
+		Fn<void(int)> save) {
+	builder.addControl({
+		.factory = [=](not_null<Ui::VerticalLayout*> parent)
+		-> object_ptr<Ui::RpWidget> {
+			auto result = object_ptr<Ui::VerticalLayout>(parent);
+			const auto raw = result.data();
+			const auto row = raw->add(
+				object_ptr<Ui::FixedHeightWidget>(
+					raw,
+					st::modificationsSliderLabel.font->height),
+				st::modificationsSliderLabelMargin);
+			const auto name = Ui::CreateChild<Ui::LabelSimple>(
+				row,
+				st::modificationsSliderLabel,
+				label);
+			const auto current = Ui::CreateChild<Ui::LabelSimple>(
+				row,
+				st::modificationsSliderValue);
+			rpl::combine(
+				row->widthValue(),
+				current->widthValue()
+			) | rpl::on_next([=](int width, int) {
+				name->moveToLeft(0, 0, width);
+				current->moveToRight(0, 0, width);
+			}, row->lifetime());
+
+			const auto show = [=](int value) {
+				current->setText(QString::number(value) + u"px"_q);
+			};
+			show(startValue);
+
+			const auto slider = raw->add(
+				object_ptr<Ui::MediaSlider>(raw, st::modificationsSlider),
+				st::modificationsSliderMargin);
+			slider->resize(st::modificationsSlider.seekSize);
+			slider->setPseudoDiscrete(
+				(max - min) / step + 1,
+				[=](int index) { return min + index * step; },
+				startValue,
+				[=](int value) {
+					show(value);
+					save(value);
+				});
+			return result;
+		},
+		.id = id,
+		.title = std::move(title),
+		.shown = std::move(shown),
+		.keywords = std::move(keywords),
+	});
+}
+
+void BuildNotificationsSection(SectionBuilder &builder) {
+	builder.addDivider();
+	builder.addSubsectionTitle(
+		tr::lng_settings_modifications_notifications());
+
+	auto &settings = Core::App().settings();
+	const auto compact = builder.addCheckbox({
+		.id = u"modifications/compact_notifications"_q,
+		.title = tr::lng_settings_compact_notifications(),
+		.checked = settings.compactNotifications(),
+		.keywords = { u"notification"_q, u"compact"_q, u"popup"_q,
+			u"toast"_q, u"rounded"_q },
+	});
+	if (compact) {
+		compact->checkedChanges(
+		) | rpl::on_next([=](bool checked) {
+			Core::App().settings().setCompactNotifications(checked);
+			Core::App().saveSettingsDelayed();
+		}, compact->lifetime());
+	}
+
+	using Settings = Core::Settings;
+	const auto sizeKeywords = QStringList{
+		u"notification"_q, u"size"_q, u"width"_q, u"height"_q, u"radius"_q,
+	};
+	AddSizeSlider(
+		builder,
+		u"modifications/compact_notification_width"_q,
+		tr::lng_settings_compact_notification_width(),
+		tr::lng_settings_compact_notification_width(tr::now),
+		sizeKeywords,
+		settings.compactNotificationsValue(),
+		Settings::kCompactNotificationWidthMin,
+		Settings::kCompactNotificationWidthMax,
+		10,
+		settings.compactNotificationWidth(),
+		[](int value) {
+			Core::App().settings().setCompactNotificationWidth(value);
+			Core::App().saveSettingsDelayed();
+		});
+	AddSizeSlider(
+		builder,
+		u"modifications/compact_notification_height"_q,
+		tr::lng_settings_compact_notification_height(),
+		tr::lng_settings_compact_notification_height(tr::now),
+		sizeKeywords,
+		settings.compactNotificationsValue(),
+		Settings::kCompactNotificationHeightMin,
+		Settings::kCompactNotificationHeightMax,
+		4,
+		settings.compactNotificationHeight(),
+		[](int value) {
+			Core::App().settings().setCompactNotificationHeight(value);
+			Core::App().saveSettingsDelayed();
+		});
+	AddSizeSlider(
+		builder,
+		u"modifications/compact_notification_radius"_q,
+		tr::lng_settings_compact_notification_radius(),
+		tr::lng_settings_compact_notification_radius(tr::now),
+		sizeKeywords,
+		settings.compactNotificationsValue(),
+		0,
+		Settings::kCompactNotificationRadiusMax,
+		2,
+		settings.compactNotificationRadius(),
+		[](int value) {
+			Core::App().settings().setCompactNotificationRadius(value);
+			Core::App().saveSettingsDelayed();
+		});
+
+	builder.addDividerText(tr::lng_settings_compact_notifications_about());
+}
+
 void BuildHistorySection(SectionBuilder &builder) {
 	builder.addSubsectionTitle(tr::lng_settings_modifications_history());
 
@@ -140,6 +282,7 @@ const auto kMeta = BuildHelper({
 	BuildPrivacySection(builder);
 	BuildHistorySection(builder);
 	BuildAppearanceSection(builder);
+	BuildNotificationsSection(builder);
 });
 
 const SectionBuildMethod kModificationsSection = kMeta.build;
