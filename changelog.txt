@@ -1,3 +1,9 @@
+7.3.0 (01.08.26)
+
+- Add a compact notification style: small rounded cards stacking
+  downwards from the top right corner.
+- Set the width, height and corner radius of compact notifications.
+
 7.2.0 (31.07.26)
 
 - Rename the app to KebabClient.
