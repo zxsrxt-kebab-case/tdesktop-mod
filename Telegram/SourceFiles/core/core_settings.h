@@ -555,6 +555,14 @@ public:
 	[[nodiscard]] rpl::producer<bool> compactNotificationsValue() const {
 		return _compactNotifications.value();
 	}
+	void setInstantNotifications(bool value) {
+		_instantNotifications = value;
+	}
+	// Skip the half minute the client otherwise holds a notification back
+	// for, in case the same message gets read on a phone first.
+	[[nodiscard]] bool instantNotifications() const {
+		return _instantNotifications.current();
+	}
 	static constexpr auto kCompactNotificationWidthMin = 240;
 	static constexpr auto kCompactNotificationWidthMax = 480;
 	static constexpr auto kCompactNotificationHeightMin = 44;
@@ -1249,6 +1257,7 @@ private:
 	rpl::variable<int> _compactNotificationWidth = 300;
 	rpl::variable<int> _compactNotificationHeight = 56;
 	rpl::variable<int> _compactNotificationRadius = 12;
+	rpl::variable<bool> _instantNotifications = false;
 	bool _suggestEmoji = true;
 	bool _suggestStickersByEmoji = true;
 	bool _suggestAnimatedEmoji = true;

@@ -154,6 +154,24 @@ void BuildNotificationsSection(SectionBuilder &builder) {
 		tr::lng_settings_modifications_notifications());
 
 	auto &settings = Core::App().settings();
+	const auto instant = builder.addCheckbox({
+		.id = u"modifications/instant_notifications"_q,
+		.title = tr::lng_settings_instant_notifications(),
+		.checked = settings.instantNotifications(),
+		.keywords = { u"notification"_q, u"instant"_q, u"delay"_q,
+			u"immediately"_q, u"fast"_q },
+	});
+	if (instant) {
+		instant->checkedChanges(
+		) | rpl::on_next([=](bool checked) {
+			Core::App().settings().setInstantNotifications(checked);
+			Core::App().saveSettingsDelayed();
+		}, instant->lifetime());
+	}
+	builder.addDividerText(tr::lng_settings_instant_notifications_about());
+	builder.addSubsectionTitle(
+		tr::lng_settings_modifications_notifications_style());
+
 	const auto compact = builder.addCheckbox({
 		.id = u"modifications/compact_notifications"_q,
 		.title = tr::lng_settings_compact_notifications(),

@@ -354,7 +354,8 @@ QByteArray Settings::serialize() const {
 		+ sizeof(qint32) // _compactNotifications
 		+ sizeof(qint32) // _compactNotificationWidth
 		+ sizeof(qint32) // _compactNotificationHeight
-		+ sizeof(qint32); // _compactNotificationRadius
+		+ sizeof(qint32) // _compactNotificationRadius
+		+ sizeof(qint32); // _instantNotifications
 
 	auto result = QByteArray();
 	result.reserve(size);
@@ -541,6 +542,7 @@ QByteArray Settings::serialize() const {
 		stream << qint32(_compactNotificationWidth.current());
 		stream << qint32(_compactNotificationHeight.current());
 		stream << qint32(_compactNotificationRadius.current());
+		stream << qint32(_instantNotifications.current() ? 1 : 0);
 	}
 
 	Ensures(result.size() == size);
@@ -658,6 +660,7 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 	qint32 compactNotificationWidth = _compactNotificationWidth.current();
 	qint32 compactNotificationHeight = _compactNotificationHeight.current();
 	qint32 compactNotificationRadius = _compactNotificationRadius.current();
+	qint32 instantNotifications = _instantNotifications.current() ? 1 : 0;
 	qint32 legacySkipTranslationForLanguage = _translateButtonEnabled ? 1 : 0;
 	qint32 skipTranslationLanguagesCount = 0;
 	std::vector<LanguageId> skipTranslationLanguages;
@@ -1102,6 +1105,9 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 			>> compactNotificationHeight
 			>> compactNotificationRadius;
 	}
+	if (!stream.atEnd()) {
+		stream >> instantNotifications;
+	}
 	if (stream.status() != QDataStream::Ok) {
 		LOG(("App Error: "
 			"Bad data for Core::Settings::constructFromSerialized()"));
@@ -1310,6 +1316,7 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 	setCompactNotificationWidth(compactNotificationWidth);
 	setCompactNotificationHeight(compactNotificationHeight);
 	setCompactNotificationRadius(compactNotificationRadius);
+	_instantNotifications = (instantNotifications == 1);
 	{ // Parse the legacy translation setting.
 		if (legacySkipTranslationForLanguage == 0) {
 			_translateButtonEnabled = false;
@@ -1812,6 +1819,7 @@ void Settings::resetOnLastLogout() {
 	_compactNotificationWidth = 300;
 	_compactNotificationHeight = 56;
 	_compactNotificationRadius = 12;
+	_instantNotifications = false;
 	_pullToNextChannel = true;
 	_quickDialogAction = Dialogs::Ui::QuickDialogAction::Disabled;
 	_notificationsVolume = 100;

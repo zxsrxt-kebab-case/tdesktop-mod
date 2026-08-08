@@ -33,6 +33,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_controller.h"
 #include "window/window_session_controller.h"
 #include "core/application.h"
+#include "core/core_settings.h"
 #include "core/version.h"
 #include "mainwindow.h"
 #include "api/api_reactions_notify_settings.h"
@@ -395,7 +396,14 @@ System::Timing System::countTiming(
 	const auto ms = crl::now();
 	const auto &updates = thread->session().updates();
 	const auto &config = thread->session().serverConfig();
-	const bool isOnline = updates.lastWasOnline();
+	if (Core::App().settings().instantNotifications()) {
+		// Hold nothing back for a phone to pick the message up first.
+		return { .delay = delay, .when = ms + delay };
+	}
+	// Whether this client is being used, rather than whether we admitted as
+	// much to the server: ghost mode reports offline while the window is
+	// right here, and that would earn a delay meant for an idle desktop.
+	const bool isOnline = Core::App().hasActiveWindow(&thread->session());
 	const auto otherNotOld = ((cOtherOnline() * 1000LL) + config.onlineCloudTimeout > t * 1000LL);
 	const bool otherLaterThanMe = (cOtherOnline() * 1000LL + (ms - updates.lastSetOnline()) > t * 1000LL);
 	if (!isOnline && otherNotOld && otherLaterThanMe) {

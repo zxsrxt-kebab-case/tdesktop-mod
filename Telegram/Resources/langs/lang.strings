@@ -718,8 +718,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_settings_unlock_restricted_about" = "Ignores the \"restrict saving content\" flag of a chat, so you can select text and save media there. Forwarding still goes through Telegram and stays blocked — use \"Send as your own\" on a message instead.";
 "lng_context_repost" = "Send as your own";
 "lng_settings_modifications_notifications" = "Notifications";
+"lng_settings_modifications_notifications_style" = "Notification style";
 "lng_settings_compact_notifications" = "Compact notifications";
 "lng_settings_compact_notifications_about" = "Small rounded cards stacking downwards from the top right corner, instead of the tall stock ones growing up from the bottom. There is no inline reply on a compact card — clicking it opens the chat.";
+"lng_settings_instant_notifications" = "Show notifications immediately";
+"lng_settings_instant_notifications_about" = "By default a notification waits half a minute when another device was used more recently, in case you read the message there first. This shows it at once.";
 "lng_settings_compact_notification_width" = "Width";
 "lng_settings_compact_notification_height" = "Height";
 "lng_settings_compact_notification_radius" = "Corner radius";
