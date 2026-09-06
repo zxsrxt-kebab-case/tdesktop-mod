@@ -38,7 +38,7 @@ public:
 	[[nodiscard]] int number() const;
 
 	[[nodiscard]] Status status() const;
-	void setStatus(Status status);
+	virtual void setStatus(Status status);
 	[[nodiscard]] bool isNormalStatus() const;
 	[[nodiscard]] bool isUndidStatus() const;
 	[[nodiscard]] bool isRemovedStatus() const;
@@ -79,6 +79,7 @@ public:
 		float64 size = 0.;
 		float64 aspectRatio = 1.;
 		float64 bend = 0.;
+		float64 fontSize = 0.;
 		bool flipped = false;
 
 		friend inline bool operator==(
@@ -120,7 +121,7 @@ protected:
 
 	using Action = void(ItemBase::*)();
 	void performForSelectedItems(Action action);
-	void actionFlip();
+	virtual void actionFlip();
 	void actionDelete();
 	void actionDuplicate();
 	void raiseToTop();
@@ -138,6 +139,9 @@ protected:
 	[[nodiscard]] bool fitsMinimumSize() const;
 	void setVerticalMinimumEnabled(bool enabled);
 	[[nodiscard]] bool isHandling() const;
+	void resetDragging();
+	[[nodiscard]] bool dragThresholdPassed(
+		not_null<QGraphicsSceneMouseEvent*> event);
 	[[nodiscard]] float64 scaledHandleSize() const;
 	void paintHandle(QPainter *p, const QRectF &rect, bool hasFocus) const;
 
@@ -188,6 +192,7 @@ private:
 
 	bool _flipped = false;
 	bool _verticalMinimumEnabled = true;
+	bool _dragging = false;
 
 };
 

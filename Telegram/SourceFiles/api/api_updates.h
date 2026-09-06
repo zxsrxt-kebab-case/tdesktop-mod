@@ -101,7 +101,10 @@ private:
 		MsgRange range,
 		const MTPupdates_ChannelDifference &result);
 
-	void updateOnline(crl::time lastNonIdleTime, bool gotOtherOffline);
+	void updateOnline(
+		crl::time lastNonIdleTime,
+		bool gotOtherOffline,
+		bool forceStatusUpdate = false);
 	void sendPing();
 	void getDifferenceByPts();
 	void getDifferenceAfterFail();

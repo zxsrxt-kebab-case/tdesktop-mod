@@ -1,3 +1,9 @@
+7.5.0 (06.09.26)
+
+- Merge Telegram Desktop 7.2.6.
+- Exclude custom notification windows from capture in Streamer mode.
+- Force offline status after sending messages in Ghost mode.
+
 7.4.0 (07.08.26)
 
 - Merge Telegram Desktop 7.0.7.

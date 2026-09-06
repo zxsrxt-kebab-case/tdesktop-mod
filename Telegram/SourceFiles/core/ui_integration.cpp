@@ -285,6 +285,10 @@ QString UiIntegration::emojiCacheFolder() {
 	return Core::DataPath(u"emoji"_q);
 }
 
+QString UiIntegration::fontsCacheFolder() {
+	return cWorkingDir() + "tdata/fonts";
+}
+
 QString UiIntegration::openglCheckFilePath() {
 	return OpenGLCheckFilePath();
 }
@@ -321,6 +325,9 @@ std::shared_ptr<ClickHandler> UiIntegration::createLinkHandler(
 	const auto my = std::any_cast<Core::TextContextDetails>(&context.other);
 	switch (data.type) {
 	case EntityType::Url:
+		if (data.data.startsWith(u"internal:"_q, Qt::CaseInsensitive)) {
+			return nullptr;
+		}
 		return (!data.data.isEmpty()
 			&& UrlClickHandler::IsSuspicious(data.data))
 			? std::make_shared<HiddenUrlClickHandler>(data.data)

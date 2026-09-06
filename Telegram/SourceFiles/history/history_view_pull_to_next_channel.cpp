@@ -9,7 +9,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "apiwrap.h"
 #include "base/call_delayed.h"
-#include "base/event_filter.h"
 #include "base/platform/base_platform_haptic.h"
 #include "core/application.h"
 #include "core/core_settings.h"
@@ -26,9 +25,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "dialogs/dialogs_main_list.h"
 #include "dialogs/dialogs_row.h"
 #include "history/history.h"
-#include "history/history_inner_widget.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
+#include "menu/menu_mark_as_read.h"
 #include "storage/storage_shared_media.h"
 #include "support/support_preload.h"
 #include "ui/chat/chat_style.h"
@@ -37,8 +36,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/dynamic_thumbnails.h"
 #include "ui/rect.h"
 #include "ui/rp_widget.h"
-#include "ui/ui_utility.h"
 #include "ui/userpic_view.h"
+#include "window/window_peer_menu.h"
 #include "window/window_session_controller.h"
 #include "styles/style_chat.h"
 #include "styles/style_chat_helpers.h"
@@ -124,7 +123,7 @@ constexpr auto kBounceDuration = crl::time(400);
 		if (!topic || topic == current) {
 			continue;
 		}
-		if (topic->chatListUnreadState().messages > 0) {
+		if (MarkAsReadMenu::IsUnreadThread(topic)) {
 			return topic;
 		}
 	}
@@ -544,10 +543,11 @@ void PullToNextChannel::Indicator::paintEvent(QPaintEvent *e) {
 			const auto count = next
 				? next->unreadCount()
 				: topic->chatListUnreadState().messages;
-			const auto badgeShown = (count > 0) && (release > 0.);
+			const auto badgeShown = (release > 0.)
+				&& (next ? (count > 0) : MarkAsReadMenu::IsUnreadThread(topic));
 			const auto font = st::historyPullNextBadgeFont;
 			const auto badgeHeight = float64(st::historyPullNextBadge);
-			const auto string = badgeShown
+			const auto string = (count > 0)
 				? ((count > 999) ? u"999+"_q : QString::number(count))
 				: QString();
 			const auto badgeWidth = badgeShown
@@ -637,9 +637,11 @@ public:
 	explicit HintOverlay(not_null<QWidget*> parent);
 
 	void setData(bool visible, bool ready, Mode mode, bool hasCandidate);
+	void hideAnimated();
 	void hideNow();
 
 private:
+	void toggle(bool visible);
 	void paintEvent(QPaintEvent *e) override;
 
 	Mode _mode = Mode::None;
@@ -664,29 +666,40 @@ void PullToNextChannel::HintOverlay::setData(
 		bool hasCandidate) {
 	_mode = mode;
 	_has = hasCandidate;
-	const auto want = visible && _has;
-	if (_visible != want) {
-		_visible = want;
-		_panel.start([=] {
-			update();
-			if (!_panel.animating() && !_visible) {
-				hide();
-			}
-		}, want ? 0. : 1., want ? 1. : 0., kPanelDuration, anim::easeOutQuint);
-	}
+	toggle(visible && _has);
 	if (_ready != ready) {
+		const auto from = _releaseProgress.value(_ready ? 1. : 0.);
 		_ready = ready;
 		_releaseProgress.start(
 			[=] { update(); },
-			ready ? 0. : 1.,
+			from,
 			ready ? 1. : 0.,
 			ready ? kReleaseShowDuration : kReleaseHideDuration,
 			ready ? anim::easeOutQuint : anim::sineInOut);
 	}
-	if (want && isHidden()) {
+	update();
+}
+
+void PullToNextChannel::HintOverlay::toggle(bool visible) {
+	if (_visible == visible) {
+		return;
+	}
+	const auto from = _panel.value(_visible ? 1. : 0.);
+	_visible = visible;
+	_panel.start([=] {
+		update();
+		if (!_panel.animating() && !_visible) {
+			hide();
+		}
+	}, from, visible ? 1. : 0., kPanelDuration, anim::easeOutQuint);
+	if (visible && isHidden()) {
 		show();
 	}
 	update();
+}
+
+void PullToNextChannel::HintOverlay::hideAnimated() {
+	toggle(false);
 }
 
 void PullToNextChannel::HintOverlay::hideNow() {
@@ -749,11 +762,11 @@ PullToNextChannel::PullToNextChannel(
 	not_null<Ui::RpWidget*> parent,
 	not_null<Ui::ElasticScroll*> scroll,
 	not_null<Window::SessionController*> controller,
-	Fn<bool()> topicBottomReady)
+	Fn<bool()> loadedAtBottom)
 : _parent(parent)
 , _scroll(scroll)
 , _controller(controller)
-, _topicBottomReady(std::move(topicBottomReady))
+, _loadedAtBottom(std::move(loadedAtBottom))
 , _indicator(base::make_unique_q<Indicator>(
 	scroll,
 	controller->chatStyle(),
@@ -784,16 +797,12 @@ PullToNextChannel::PullToNextChannel(
 
 PullToNextChannel::~PullToNextChannel() = default;
 
-void PullToNextChannel::attachToContent(not_null<HistoryInner*>) {
-	reset();
-}
-
 void PullToNextChannel::setHistory(History *history) {
 	const auto mode = history ? Mode::History : Mode::None;
 	if (_mode == mode && _history.get() == history) {
 		return;
 	}
-	reset();
+	reset(anim::type::instant);
 	_topic = nullptr;
 	_nextTopic = nullptr;
 	_history = history;
@@ -806,7 +815,7 @@ void PullToNextChannel::setTopic(Data::ForumTopic *topic) {
 	if (_mode == mode && _topic.get() == topic) {
 		return;
 	}
-	reset();
+	reset(anim::type::instant);
 	_history = nullptr;
 	_next = nullptr;
 	_topic = topic;
@@ -840,22 +849,13 @@ bool PullToNextChannel::active() const {
 }
 
 bool PullToNextChannel::atBottom() const {
-	switch (_mode) {
-	case Mode::History: {
-		const auto history = _history.get();
-		return history
-			&& (_scroll->scrollTop() >= _scroll->scrollTopMax())
-			&& history->loadedAtBottom();
-	}
-	case Mode::Topic:
-		return _topic
-			&& (_scroll->scrollTop() >= _scroll->scrollTopMax())
-			&& _topicBottomReady
-			&& _topicBottomReady();
-	case Mode::None:
+	if (_scroll->scrollTop() < _scroll->scrollTopMax()) {
 		return false;
+	} else if (_loadedAtBottom) {
+		return _loadedAtBottom();
 	}
-	Unexpected("Mode in PullToNextChannel::atBottom.");
+	const auto history = _history.get();
+	return history && history->loadedAtBottom();
 }
 
 void PullToNextChannel::handleOverscroll(
@@ -909,6 +909,7 @@ void PullToNextChannel::handleOverscroll(
 		}
 	}
 	_pull = pull;
+	_holding = (movement == Phase::Progress);
 	const auto reached = (pull >= threshold);
 	if (_reached) {
 		// Collapse on a peak-relative reverse, not down to the threshold.
@@ -959,7 +960,7 @@ void PullToNextChannel::handleOverscroll(
 				&& (_nextTopic.get() == next)
 				&& (next != current)
 				&& (next->forum() == current->forum())
-				&& (next->chatListUnreadState().messages > 0)
+				&& MarkAsReadMenu::IsUnreadThread(next)
 				&& active()) {
 				_pulling = false;
 				_jumping = true;
@@ -975,13 +976,14 @@ void PullToNextChannel::handleOverscroll(
 		}
 	}
 	if (pull <= 0) {
-		reset();
+		reset(anim::type::normal);
 	}
 }
 
 void PullToNextChannel::clearState() {
 	_dwellTimer.cancel();
 	_pulling = false;
+	_holding = false;
 	_committed = false;
 	_jumping = false;
 	_reached = false;
@@ -993,12 +995,16 @@ void PullToNextChannel::clearState() {
 	_topicCompleted = QString();
 }
 
-void PullToNextChannel::reset() {
+void PullToNextChannel::reset(anim::type animated) {
 	_expand.stop();
 	clearState();
 	_scroll->setContentBottomInset(0);
 	_indicator->hideNow();
-	_hint->hideNow();
+	if (animated == anim::type::instant) {
+		_hint->hideNow();
+	} else {
+		_hint->hideAnimated();
+	}
 }
 
 void PullToNextChannel::startExpand(bool ready) {
@@ -1025,7 +1031,7 @@ void PullToNextChannel::pushIndicator() {
 	if (_mode == Mode::History) {
 		const auto next = _next.get();
 		_indicator->setHistoryData(effective, _reached, next);
-		_hint->setData(_pull > 0., _reached, _mode, next != nullptr);
+		_hint->setData(hintVisible(), _reached, _mode, next != nullptr);
 	} else if (_mode == Mode::Topic) {
 		const auto next = _nextTopic.get();
 		_indicator->setTopicData(
@@ -1033,8 +1039,12 @@ void PullToNextChannel::pushIndicator() {
 			_reached,
 			next,
 			_topicCompleted);
-		_hint->setData(_pull > 0., _reached, _mode, next != nullptr);
+		_hint->setData(hintVisible(), _reached, _mode, next != nullptr);
 	}
+}
+
+bool PullToNextChannel::hintVisible() const {
+	return _holding && (_pull > 0.);
 }
 
 void PullToNextChannel::updateGeometry() {
@@ -1094,9 +1104,9 @@ void PullToNextChannel::jumpToTopic(
 		|| (_nextTopic.get() != next)
 		|| (next == current)
 		|| (next->forum() != current->forum())
-		|| (next->chatListUnreadState().messages <= 0)
+		|| !MarkAsReadMenu::IsUnreadThread(next)
 		|| !active()) {
-		reset();
+		reset(anim::type::normal);
 		return;
 	}
 	auto params = Window::SectionShow(Window::SectionShow::Way::ClearStack);
