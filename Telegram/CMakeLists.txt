@@ -1557,6 +1557,20 @@ PRIVATE
     main/session/send_as_peers.h
     main/session/session_show.cpp
     main/session/session_show.h
+    mcp/mcp_bridge.cpp
+    mcp/mcp_bridge.h
+    mcp/mcp_events.cpp
+    mcp/mcp_events.h
+    mcp/mcp_format.cpp
+    mcp/mcp_format.h
+    mcp/mcp_manager.cpp
+    mcp/mcp_manager.h
+    mcp/mcp_server.cpp
+    mcp/mcp_server.h
+    mcp/mcp_settings.cpp
+    mcp/mcp_settings.h
+    mcp/mcp_tools.cpp
+    mcp/mcp_tools.h
     media/audio/media_audio.cpp
     media/audio/media_audio.h
     media/audio/media_audio_edit.cpp
@@ -1968,6 +1982,8 @@ PRIVATE
     settings/sections/settings_local_storage.h
     settings/sections/settings_main.cpp
     settings/sections/settings_main.h
+    settings/sections/settings_mcp.cpp
+    settings/sections/settings_mcp.h
     settings/sections/settings_modifications.cpp
     settings/sections/settings_modifications.h
     settings/settings_recent_searches.cpp

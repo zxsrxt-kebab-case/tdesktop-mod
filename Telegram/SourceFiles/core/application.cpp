@@ -63,6 +63,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_account.h"
 #include "main/main_domain.h"
 #include "main/main_session.h"
+#include "mcp/mcp_manager.h"
 #include "media/view/media_view_overlay_widget.h"
 #include "media/view/media_view_open_common.h"
 #include "mtproto/mtproto_dc_options.h"
@@ -277,6 +278,9 @@ Application::~Application() {
 	_mediaView = nullptr;
 	_notifications->clearAllFast();
 
+	// Holds subscriptions to the sessions, which go away with the domain.
+	_mcp = nullptr;
+
 	// We must manually destroy all windows before going further.
 	// DestroyWindow on Windows (at least with an active WebView) enters
 	// event loop and invoke scheduled crl::on_main callbacks.
@@ -445,6 +449,15 @@ void Application::run() {
 
 	startDomain();
 	startTray();
+
+	// Its settings are app settings, which a legacy passcode keeps unread
+	// until the first unlock.
+	passcodeLockValue(
+	) | rpl::filter(
+		!rpl::mappers::_1
+	) | rpl::take(1) | rpl::on_next([=] {
+		_mcp = std::make_unique<Mcp::Manager>();
+	}, _lifetime);
 
 	_lastActivePrimaryWindow->firstShow();
 

@@ -102,6 +102,10 @@ namespace Export {
 class Manager;
 } // namespace Export
 
+namespace Mcp {
+class Manager;
+} // namespace Mcp
+
 namespace Calls {
 class Instance;
 } // namespace Calls
@@ -255,6 +259,11 @@ public:
 		return *_exportManager;
 	}
 	[[nodiscard]] bool exportPreventsQuit();
+
+	// Created once the app is first unlocked, so null before that.
+	[[nodiscard]] Mcp::Manager *mcp() const {
+		return _mcp.get();
+	}
 
 	// Main::Session component.
 	Main::Session *maybePrimarySession() const;
@@ -450,6 +459,7 @@ private:
 	const std::unique_ptr<Data::DownloadManager> _downloadManager;
 	const std::unique_ptr<Main::Domain> _domain;
 	const std::unique_ptr<Export::Manager> _exportManager;
+	std::unique_ptr<Mcp::Manager> _mcp;
 	const std::unique_ptr<Calls::Instance> _calls;
 	const std::unique_ptr<Iv::Instance> _iv;
 	base::flat_map<

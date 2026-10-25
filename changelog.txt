@@ -13,6 +13,9 @@
 - Fix staying online in Ghost mode after sending a message.
 - Rounded notifications stay out of screen captures in streamer mode too,
   corners and all.
+- Add an MCP server for Claude Code and other AI tools, in Settings >
+  Modifications: chats and forum topics, drafts, sending, and new messages
+  pushed live on subscription. Local only, behind a token.
 
 7.5.1 (09.09.26)
 

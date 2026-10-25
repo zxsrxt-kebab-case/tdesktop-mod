@@ -15,6 +15,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "settings/settings_builder.h"
 #include "settings/sections/settings_main.h"
+#include "settings/sections/settings_mcp.h"
 #include "ui/vertical_list.h"
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/continuous_sliders.h"
@@ -277,6 +278,20 @@ void BuildAppearanceSection(SectionBuilder &builder) {
 	}
 }
 
+void BuildIntegrationsSection(SectionBuilder &builder) {
+	builder.addSkip();
+	builder.addSubsectionTitle(tr::lng_settings_modifications_integrations());
+	builder.addSectionButton({
+		.title = tr::lng_settings_mcp(),
+		.targetSection = McpId(),
+		.icon = { &st::menuIconBotCommands },
+		.keywords = { u"mcp"_q, u"claude"_q, u"ai"_q, u"server"_q,
+			u"api"_q, u"token"_q },
+	});
+	builder.addSkip();
+	builder.addDividerText(tr::lng_settings_mcp_short_about());
+}
+
 class Modifications : public Section<Modifications> {
 public:
 	Modifications(
@@ -300,6 +315,7 @@ const auto kMeta = BuildHelper({
 	BuildHistorySection(builder);
 	BuildAppearanceSection(builder);
 	BuildNotificationsSection(builder);
+	BuildIntegrationsSection(builder);
 });
 
 const SectionBuildMethod kModificationsSection = kMeta.build;
