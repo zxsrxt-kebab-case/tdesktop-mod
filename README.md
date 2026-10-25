@@ -44,7 +44,7 @@ So instead of a forward there is **Send as your own**, which rebuilds the messag
 ## Other changes
 
 - **No account limit.** Upstream allows three, plus one per logged-in Premium account, capped at six — a client-side cap the servers never enforced.
-- **Peer ID and datacenter** are shown in profiles. Click either to copy. Bot callback data can be copied from the context menu.
+- **Peer ID and datacenter** are shown in profiles. Click either to copy. The ID is the one the Bot API uses, so a group is negative and a channel or supergroup carries the `-100` prefix. Bot callback data can be copied from the context menu.
 
 ## Not included
 

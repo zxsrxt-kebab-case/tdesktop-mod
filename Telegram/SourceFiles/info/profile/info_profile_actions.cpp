@@ -280,8 +280,7 @@ base::options::toggle ShowChannelJoinedBelowAbout({
 	) | rpl::map([=] {
 		using namespace Ui::Text;
 		auto label = TextWithEntities();
-		const auto raw = peer->id.value & PeerId::kChatTypeMask;
-		label.append(QString::number(raw));
+		label.append(QString::number(peerToBotApi(peer->id)));
 		if (const auto dc = PeerDcId(peer)) {
 			label.append(' ').append(Ui::kQBullet).append(u" DC "_q);
 			label.append(QString::number(dc));
@@ -1704,8 +1703,7 @@ Section DetailsFiller::makeInfo() {
 				tr::lng_info_id_label(),
 				PeerIdValue(user),
 				QString()).text;
-			const auto rawId = QString::number(
-				user->id.value & PeerId::kChatTypeMask);
+			const auto rawId = QString::number(peerToBotApi(user->id));
 			const auto copyId = [=] {
 				TextUtilities::SetClipboardText({ rawId });
 				if (const auto strong = weak.get()) {
@@ -1918,8 +1916,7 @@ Section DetailsFiller::makeInfo() {
 					tr::lng_info_id_label(),
 					PeerIdValue(_peer),
 					QString()).text;
-				const auto rawId = QString::number(
-					_peer->id.value & PeerId::kChatTypeMask);
+				const auto rawId = QString::number(peerToBotApi(_peer->id));
 				const auto copyId = [=] {
 					TextUtilities::SetClipboardText({ rawId });
 					if (const auto strong = weak.get()) {

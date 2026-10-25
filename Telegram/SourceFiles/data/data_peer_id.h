@@ -229,6 +229,20 @@ bool operator>=(PeerIdZero, PeerId) = delete;
 	return MTP_long(id.value & PeerId::kChatTypeMask);
 }
 
+// The number the Bot API uses for a peer, which is what bots, bot-facing
+// tools and most of the documentation outside this client speak in: a user
+// keeps its id, a basic group is negated, and a channel or supergroup is
+// negated under a -100 prefix. The protocol itself carries none of that.
+[[nodiscard]] inline constexpr int64 peerToBotApi(PeerId id) noexcept {
+	constexpr auto kChannelPrefix = int64(1000000000000LL);
+	const auto bare = int64(id.value & PeerId::kChatTypeMask);
+	return peerIsChat(id)
+		? -bare
+		: peerIsChannel(id)
+		? -(kChannelPrefix + bare)
+		: bare;
+}
+
 [[nodiscard]] PeerId peerFromMTP(const MTPPeer &peer);
 [[nodiscard]] MTPpeer peerToMTP(PeerId id);
 
