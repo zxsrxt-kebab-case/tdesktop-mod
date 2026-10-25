@@ -82,6 +82,7 @@ namespace Api {
 namespace {
 
 constexpr auto kChannelGetDifferenceLimit = 100;
+constexpr auto kForceOfflineDelay = crl::time(1500);
 
 // 1s wait after show channel history before sending getChannelDifference.
 constexpr auto kWaitForChannelGetDifference = crl::time(1000);
@@ -236,6 +237,9 @@ Updates::Updates(not_null<Main::Session*> session)
 : _session(session)
 , _noUpdatesTimer([=] { sendPing(); })
 , _onlineTimer([=] { updateOnline(); })
+, _forceOfflineTimer([=] {
+	updateOnline(Core::App().lastNonIdleTime(), false, true);
+})
 , _ptsWaiter(this)
 , _byPtsTimer([=] { getDifferenceByPts(); })
 , _bySeqTimer([=] { getDifference(); })
@@ -1023,9 +1027,17 @@ void Updates::updateOnline(
 		}
 	}
 	auto ms = crl::now();
+
+	// Anything sent can make the server mark us online behind our back, so in
+	// ghost mode the offline status is pushed again every period instead of
+	// only when it changes - which, being always offline, is never.
+	const auto reassertOffline = !isOnline
+		&& Core::App().settings().ghostMode()
+		&& (_lastSetOnline + config.onlineUpdatePeriod <= ms);
 	if (isOnline != _lastWasOnline
 		|| (isOnline && _lastSetOnline + config.onlineUpdatePeriod <= ms)
 		|| (isOnline && gotOtherOffline)
+		|| reassertOffline
 		|| forceStatusUpdate) {
 		api().request(base::take(_onlineRequest)).cancel();
 
@@ -1065,6 +1077,16 @@ void Updates::updateOnline(
 		Assert(updateIn >= 0);
 	}
 	_onlineTimer.callOnce(updateIn);
+}
+
+void Updates::forceOfflineSoon() {
+	if (!Core::App().settings().ghostMode()) {
+		return;
+	}
+
+	// The status has to reach the server after the request that made it mark
+	// us online, so this waits for that request to be on its way.
+	_forceOfflineTimer.callOnce(kForceOfflineDelay);
 }
 
 void Updates::checkIdleFinish(crl::time lastNonIdleTime) {

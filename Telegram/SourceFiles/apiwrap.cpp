@@ -3877,6 +3877,10 @@ void ApiWrap::sendAction(const SendAction &action) {
 		action.history->getReadyFor(ShowAtTheEndMsgId);
 	}
 	_sendActions.fire_copy(action);
+
+	// Sending marks us online on the server, and in ghost mode that has to be
+	// undone - it is the one status change nobody tells us about.
+	_session->updates().forceOfflineSoon();
 }
 
 void ApiWrap::finishForwarding(const SendAction &action) {

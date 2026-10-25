@@ -45,6 +45,12 @@ public:
 	[[nodiscard]] int32 pts() const;
 
 	void updateOnline(crl::time lastNonIdleTime = 0);
+
+	// Ghost mode keeps the status offline, but the server marks us online for
+	// whatever we send, and it tells no session about a status it set itself -
+	// least of all the one that caused it. So the offline status is pushed
+	// again after sending, instead of waiting to hear about it.
+	void forceOfflineSoon();
 	[[nodiscard]] bool isIdle() const;
 	[[nodiscard]] rpl::producer<bool> isIdleValue() const;
 	void checkIdleFinish(crl::time lastNonIdleTime = 0);
@@ -179,6 +185,7 @@ private:
 	int32 _updatesSeq = 0;
 	base::Timer _noUpdatesTimer;
 	base::Timer _onlineTimer;
+	base::Timer _forceOfflineTimer;
 
 	PtsWaiter _ptsWaiter;
 
