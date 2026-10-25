@@ -123,7 +123,10 @@ PasscodeLockWidget::PasscodeLockWidget(
 	QWidget *parent,
 	not_null<Controller*> window)
 : LockWidget(parent, window)
-, _setup(Core::App().passcodeSetupRequired())
+// A passcode can exist with the app lock off - a wallet one does - and
+// then what is asked for here is that passcode, not a new one.
+, _setup(Core::App().passcodeSetupRequired()
+	&& !Core::App().domain().local().hasPasscode())
 , _passcode(this, st::passcodeInput, (_setup
 	? tr::lng_passcode_enter_first()
 	: tr::lng_passcode_ph()))
