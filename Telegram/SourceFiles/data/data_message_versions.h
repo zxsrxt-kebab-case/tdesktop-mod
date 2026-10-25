@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "base/flat_map.h"
 #include "base/flat_set.h"
+#include "base/weak_ptr.h"
 
 class HistoryItem;
 class History;
@@ -39,7 +40,12 @@ struct MessageVersion {
 // the rest of the account data - it is not a separate plaintext database.
 // Appending costs the same whatever has piled up; the file is compacted
 // when it holds noticeably more records than are still live.
-class MessageVersions final {
+//
+// Reading that file and compacting it both scale with how much has piled
+// up, so neither runs on the main thread. Until the read lands there is
+// nothing saved to show: lookups answer empty, and the histories asked
+// for in the meantime are restored again once it does.
+class MessageVersions final : public base::has_weak_ptr {
 public:
 	explicit MessageVersions(not_null<Session*> owner);
 	~MessageVersions();
@@ -63,23 +69,33 @@ public:
 	void clear();
 
 private:
-	void load();
+	using Map = base::flat_map<FullMsgId, std::vector<MessageVersion>>;
+
+	void startLoad();
+	void applyLoaded(
+		Map &&loaded,
+		int fileRecords,
+		int liveRecords,
+		int approximateBytes);
 	void capture(not_null<HistoryItem*> item, bool deleted);
 	void enforceLimits();
 	void compactIfNeeded();
+	void restoreNow(not_null<History*> history);
 
 	[[nodiscard]] QByteArray serializeRecord(
 		FullMsgId id,
 		const MessageVersion &version) const;
-	[[nodiscard]] bool applyRecord(const QByteArray &record);
 
 	const not_null<Session*> _owner;
-	base::flat_map<FullMsgId, std::vector<MessageVersion>> _versions;
+	Map _versions;
 	base::flat_set<FullMsgId> _locallyDeleted;
 	base::flat_set<PeerId> _restoredHistories;
+	base::flat_set<PeerId> _restoreWhenLoaded;
 	int _approximateBytes = 0;
 	int _fileRecords = 0; // Including ones no longer live, for compaction.
 	int _liveRecords = 0;
+	int _loadGeneration = 0; // Bumped by clear(), to drop a stale read.
+	bool _loading = false;
 	bool _loaded = false;
 
 };

@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "base/timer.h"
+#include "base/weak_ptr.h"
 #include "base/flags.h"
 #include "storage/cache/storage_cache_database.h"
 #include "data/stickers/data_stickers_set.h"
@@ -74,7 +75,7 @@ struct WalletEngineValue {
 	QByteArray bytes;
 };
 
-class Account final {
+class Account final : public base::has_weak_ptr {
 public:
 	Account(not_null<Main::Account*> owner, const QString &dataName);
 	~Account();
@@ -105,9 +106,16 @@ public:
 	// Message versions live in an append-only file: one encrypted record per
 	// captured version, so saving costs the same no matter how much has
 	// piled up. rewriteMessageVersions() compacts it.
+	//
+	// Reading the whole file and rewriting it both scale with how much has
+	// piled up, so neither happens on the main thread: the reader returned
+	// here is run by the caller on a worker, and a rewrite is handed to one.
+	// Appends that arrive while a rewrite runs are held and written after it,
+	// so the file is only ever touched by one thread at a time.
 	void appendMessageVersion(const QByteArray &record);
-	[[nodiscard]] std::vector<QByteArray> readMessageVersionRecords();
-	void rewriteMessageVersions(const std::vector<QByteArray> &records);
+	[[nodiscard]] Fn<std::vector<QByteArray>()> messageVersionsReader() const;
+	bool rewriteMessageVersions(std::vector<QByteArray> records);
+	void clearMessageVersions();
 
 	void registerDraftSource(
 		not_null<History*> history,
@@ -340,6 +348,8 @@ private:
 	template <typename Type>
 	[[nodiscard]] std::optional<Type> readPrefImpl(std::string_view key);
 
+	void messageVersionsRewriteDone();
+
 	void writePrefGeneric(std::string_view key, const QByteArray &value);
 	[[nodiscard]] std::optional<QByteArray> readPrefGeneric(
 		std::string_view key);
@@ -416,6 +426,10 @@ private:
 	Webview::StorageId _webviewStorageIdOther;
 
 	base::flat_map<QByteArray, QByteArray> _prefs;
+
+	std::vector<QByteArray> _messageVersionsHeld;
+	bool _messageVersionsRewriting = false;
+	bool _messageVersionsClearing = false;
 
 	int _oldMapVersion = 0;
 

@@ -1212,12 +1212,10 @@ constexpr auto kMessageVersionsMaxRecord = 4 * 1024 * 1024;
 	return basePath + u"msgversions"_q;
 }
 
-} // namespace
-
-void Account::appendMessageVersion(const QByteArray &record) {
-	Expects(_localKey != nullptr);
-
-	const auto path = MessageVersionsPath(_basePath);
+void AppendMessageVersionRecord(
+		const QString &path,
+		const MTP::AuthKeyPtr &key,
+		const QByteArray &record) {
 	const auto existed = QFile::exists(path);
 	auto file = QFile(path);
 	if (!file.open(QIODevice::Append)) {
@@ -1232,14 +1230,12 @@ void Account::appendMessageVersion(const QByteArray &record) {
 	auto data = EncryptedDescriptor(
 		sizeof(quint32) + Serialize::bytearraySize(record));
 	data.stream << record;
-	stream << PrepareEncrypted(data, _localKey);
+	stream << PrepareEncrypted(data, key);
 }
 
-std::vector<QByteArray> Account::readMessageVersionRecords() {
-	const auto path = MessageVersionsPath(_basePath);
-	if (!_localKey) {
-		return {};
-	}
+[[nodiscard]] std::vector<QByteArray> ReadMessageVersionRecords(
+		const QString &path,
+		const MTP::AuthKeyPtr &key) {
 	auto file = QFile(path);
 	if (!file.open(QIODevice::ReadOnly)) {
 		return {};
@@ -1267,7 +1263,7 @@ std::vector<QByteArray> Account::readMessageVersionRecords() {
 			break;
 		}
 		auto data = EncryptedDescriptor();
-		if (!DecryptLocal(data, encrypted, _localKey)) {
+		if (!DecryptLocal(data, encrypted, key)) {
 			LOG(("App Error: Could not decrypt a message version."));
 			break;
 		}
@@ -1281,10 +1277,10 @@ std::vector<QByteArray> Account::readMessageVersionRecords() {
 	return result;
 }
 
-void Account::rewriteMessageVersions(const std::vector<QByteArray> &records) {
-	Expects(_localKey != nullptr);
-
-	const auto path = MessageVersionsPath(_basePath);
+void WriteMessageVersions(
+		const QString &path,
+		const MTP::AuthKeyPtr &key,
+		const std::vector<QByteArray> &records) {
 	if (records.empty()) {
 		QFile::remove(path);
 		return;
@@ -1301,11 +1297,81 @@ void Account::rewriteMessageVersions(const std::vector<QByteArray> &records) {
 		auto data = EncryptedDescriptor(
 			sizeof(quint32) + Serialize::bytearraySize(record));
 		data.stream << record;
-		stream << PrepareEncrypted(data, _localKey);
+		stream << PrepareEncrypted(data, key);
 	}
 	if (!save.commit()) {
 		LOG(("App Error: Could not commit '%1'.").arg(path));
 	}
+}
+
+} // namespace
+
+void Account::appendMessageVersion(const QByteArray &record) {
+	Expects(_localKey != nullptr);
+
+	if (_messageVersionsRewriting) {
+		_messageVersionsHeld.push_back(record);
+		return;
+	}
+	AppendMessageVersionRecord(
+		MessageVersionsPath(_basePath),
+		_localKey,
+		record);
+}
+
+Fn<std::vector<QByteArray>()> Account::messageVersionsReader() const {
+	if (!_localKey) {
+		return nullptr;
+	}
+	return [path = MessageVersionsPath(_basePath), key = _localKey] {
+		return ReadMessageVersionRecords(path, key);
+	};
+}
+
+bool Account::rewriteMessageVersions(std::vector<QByteArray> records) {
+	Expects(_localKey != nullptr);
+
+	if (_messageVersionsRewriting) {
+		// The caller rechecks on the next capture, so skipping one round of
+		// compaction only leaves the file longer than it has to be for a
+		// while. Two rewrites at once would race for the same file.
+		return false;
+	}
+	_messageVersionsRewriting = true;
+	crl::async([
+		path = MessageVersionsPath(_basePath),
+		key = _localKey,
+		records = std::move(records),
+		done = crl::guard(this, [=] { messageVersionsRewriteDone(); })
+	] {
+		WriteMessageVersions(path, key, records);
+		crl::on_main([done = std::move(done)] { done(); });
+	});
+	return true;
+}
+
+void Account::messageVersionsRewriteDone() {
+	_messageVersionsRewriting = false;
+	const auto path = MessageVersionsPath(_basePath);
+	if (base::take(_messageVersionsClearing)) {
+		_messageVersionsHeld.clear();
+		QFile::remove(path);
+		return;
+	}
+	for (const auto &record : base::take(_messageVersionsHeld)) {
+		AppendMessageVersionRecord(path, _localKey, record);
+	}
+}
+
+void Account::clearMessageVersions() {
+	if (_messageVersionsRewriting) {
+		// The rewrite in flight is about to recreate the file, so the
+		// removal waits for it instead of being undone by it.
+		_messageVersionsClearing = true;
+		_messageVersionsHeld.clear();
+		return;
+	}
+	QFile::remove(MessageVersionsPath(_basePath));
 }
 
 void Account::writeMtpData() {
