@@ -601,7 +601,8 @@ public:
 			_compactNotifications.changes() | rpl::to_empty,
 			_compactNotificationWidth.changes() | rpl::to_empty,
 			_compactNotificationHeight.changes() | rpl::to_empty,
-			_compactNotificationRadius.changes() | rpl::to_empty);
+			_compactNotificationRadius.changes() | rpl::to_empty,
+			_streamerMode.changes() | rpl::to_empty);
 	}
 	[[nodiscard]] bool suggestEmoji() const {
 		return _suggestEmoji;

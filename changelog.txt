@@ -11,6 +11,8 @@
 - Show group and channel IDs the way the Bot API writes them, negative and
   with the -100 prefix for channels.
 - Fix staying online in Ghost mode after sending a message.
+- Rounded notifications stay out of screen captures in streamer mode too,
+  corners and all.
 
 7.5.1 (09.09.26)
 

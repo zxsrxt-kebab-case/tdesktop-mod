@@ -31,6 +31,7 @@ namespace internal {
 class Widget;
 class Notification;
 class HideAllButton;
+class Host;
 } // namespace internal
 
 class Manager;
@@ -91,11 +92,18 @@ private:
 
 	void moveWidgets();
 	void changeNotificationHeight(Notification *widget, int newHeight);
+
+	[[nodiscard]] not_null<Ui::RpWidget*> ensureHost();
+	void updateHostGeometry();
+	void refreshHost();
 	void settingsChanged(ChangeType change);
 
 	bool hasReplyingNotification() const;
 
 	void subscribeToSession(not_null<Main::Session*> session);
+
+	// Declared first, so that it outlives the cards it holds.
+	std::unique_ptr<internal::Host> _host;
 
 	std::vector<std::unique_ptr<Notification>> _notifications;
 	base::flat_map<
@@ -174,10 +182,12 @@ protected:
 private:
 	void opacityAnimationCallback();
 	void moveByShift();
+	void moveGlobal(QPoint position);
 	void hideAnimated(float64 duration, const anim::transition &func);
 	bool shiftAnimationCallback(crl::time now);
 
 	const not_null<Manager*> _manager;
+	const bool _hosted = false;
 
 	bool _hiding = false;
 	base::binary_guard _hidingDelayed;

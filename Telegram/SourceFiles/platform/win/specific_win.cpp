@@ -542,6 +542,9 @@ void SetWindowScreenshotProtection(not_null<QWidget*> window, bool enabled) {
 	if (!enabled) {
 		SetWindowDisplayAffinity(hwnd, WDA_NONE);
 	} else if (!SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)) {
+		// A window whose translucency comes from UpdateLayeredWindow is
+		// refused outright, with ERROR_NOT_ENOUGH_MEMORY. One composed
+		// through the GPU is accepted, translucent or not.
 		SetWindowDisplayAffinity(hwnd, WDA_MONITOR);
 	}
 }

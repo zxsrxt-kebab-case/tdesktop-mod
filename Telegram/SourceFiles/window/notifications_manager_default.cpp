@@ -10,10 +10,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "platform/platform_notifications_manager.h"
 #include "platform/platform_specific.h"
 #include "core/application.h"
+#include "core/streamer_mode.h"
 #include "core/ui_integration.h"
 #include "chat_helpers/emoji_suggestions_widget.h"
 #include "chat_helpers/message_field.h"
 #include "lang/lang_keys.h"
+#include "base/event_filter.h"
 #include "base/qt_signal_producer.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/fields/input_field.h"
@@ -21,6 +23,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/text_options.h"
 #include "ui/text/text_utilities.h"
 #include "ui/emoji_config.h"
+#include "ui/gl/gl_detection.h"
+#include "ui/gl/gl_surface.h"
 #include "ui/empty_userpic.h"
 #include "ui/painter.h"
 #include "ui/power_saving.h"
@@ -47,6 +51,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtGui/QGuiApplication>
 #include <QtGui/QPainterPath>
 #include <QtGui/QScreen>
+#include <QtWidgets/QGraphicsOpacityEffect>
 
 namespace Window {
 namespace Notifications {
@@ -74,6 +79,39 @@ namespace {
 	return NotifyCompact()
 		? Core::App().settings().compactNotificationRadius()
 		: 0;
+}
+
+// Rounded corners are normally cut by alpha, which needs a translucent
+// window - and Windows refuses to keep a translucent window out of a screen
+// capture when it is a layered one, which is how a raster window gets its
+// alpha, while streamer mode is all about staying out of captures.
+[[nodiscard]] bool NotifyStreamerCorners() {
+	return (NotifyRadius() > 0)
+		&& Core::StreamerMode::Supported()
+		&& Core::App().settings().streamerMode();
+}
+
+// So in that mode rounded cards are not windows of their own: they all live
+// in one window composed through the GPU, the way the media viewer is, and
+// Windows does keep such a window out. One window for the whole column, not
+// one per card, because each of those would bring its own device.
+[[nodiscard]] bool NotifyHosted() {
+	return NotifyStreamerCorners() && Ui::GL::WidgetsRhiSupported();
+}
+
+// Without the GPU path the corners are cut by a window mask instead: the
+// window stays opaque and hideable, at the price of a hard edge.
+[[nodiscard]] bool NotifyMaskedCorners() {
+	return NotifyStreamerCorners() && !Ui::GL::WidgetsRhiSupported();
+}
+
+[[nodiscard]] QRegion NotifyCornersMask(QSize size, int radius) {
+	auto path = QPainterPath();
+	path.addRoundedRect(
+		QRectF(QPointF(), QSizeF(size)),
+		radius,
+		radius);
+	return QRegion(path.toFillPolygon().toPolygon());
 }
 
 [[nodiscard]] int NotifyPhotoSize() {
@@ -146,6 +184,42 @@ internal::Widget::Direction notificationShiftDirection() {
 
 } // namespace
 
+namespace internal {
+
+// The window the cards live in while they are hosted. It covers the column
+// they stack in and draws nothing itself; its region is the cards, so the
+// rest of the column lets clicks through to whatever is below.
+class Host final : public Ui::RpWidget {
+public:
+	Host();
+
+protected:
+	void paintEvent(QPaintEvent *e) override;
+
+};
+
+Host::Host() {
+	setWindowFlags(Qt::WindowFlags(Qt::FramelessWindowHint)
+		| Qt::WindowStaysOnTopHint
+		| Qt::BypassWindowManagerHint
+		| Qt::NoDropShadowWindowHint
+		| Qt::Tool);
+	setAttribute(Qt::WA_MacAlwaysShowToolWindow);
+	setAttribute(Qt::WA_NoSystemBackground);
+	setAttribute(Qt::WA_TranslucentBackground);
+	setAttribute(Qt::WA_ShowWithoutActivating);
+
+	// A translucent window composed through the GPU gets its alpha without
+	// being a layered window, which is what lets it out of captures.
+	Ui::GL::EnsureWindowRhi(this);
+	Ui::Platform::InitOnTopPanel(this);
+}
+
+void Host::paintEvent(QPaintEvent *e) {
+}
+
+} // namespace internal
+
 std::unique_ptr<Manager> Create(System *system) {
 	return std::make_unique<Manager>(system);
 }
@@ -216,7 +290,9 @@ bool Manager::hasReplyingNotification() const {
 }
 
 void Manager::settingsChanged(ChangeType change) {
-	if (change == ChangeType::Corner) {
+	if (change == ChangeType::Corner && _host) {
+		updateHostGeometry();
+	} else if (change == ChangeType::Corner) {
 		auto startPosition = notificationStartPosition();
 		auto shiftDirection = notificationShiftDirection();
 		for (const auto &notification : _notifications) {
@@ -405,6 +481,67 @@ void Manager::moveWidgets() {
 	}
 }
 
+not_null<Ui::RpWidget*> Manager::ensureHost() {
+	if (!_host) {
+		_host = std::make_unique<internal::Host>();
+	}
+	updateHostGeometry();
+	return _host.get();
+}
+
+void Manager::updateHostGeometry() {
+	const auto start = notificationStartPosition();
+	const auto area = NotificationDisplayRect(
+		Core::App().activePrimaryWindow());
+	const auto geometry = QRect(
+		start.x(),
+		area.y(),
+		NotifyWidth(),
+		area.height());
+	if (_host->geometry() == geometry) {
+		return;
+	}
+	_host->setGeometry(geometry);
+
+	// The cards keep their place on the screen, so their place in the
+	// window moves.
+	const auto direction = notificationShiftDirection();
+	for (const auto &notification : _notifications) {
+		notification->updatePosition(start, direction);
+	}
+	if (_hideAll) {
+		_hideAll->updatePosition(start, direction);
+	}
+}
+
+void Manager::refreshHost() {
+	if (!_host) {
+		return;
+	}
+	auto region = QRegion();
+	const auto add = [&](not_null<internal::Widget*> widget) {
+		if (!widget->isHidden()) {
+			region += widget->geometry();
+		}
+	};
+	for (const auto &notification : _notifications) {
+		add(notification.get());
+	}
+	if (_hideAll) {
+		add(_hideAll.get());
+	}
+	if (region.isEmpty()) {
+		// An empty mask is no mask, which would make the whole column catch
+		// the mouse; with nothing to show the window goes away instead.
+		_host->hide();
+		return;
+	}
+	_host->setMask(region);
+	if (_host->isHidden()) {
+		_host->show();
+	}
+}
+
 void Manager::changeNotificationHeight(Notification *notification, int newHeight) {
 	auto deltaHeight = newHeight - notification->height();
 	if (!deltaHeight) return;
@@ -448,6 +585,7 @@ void Manager::removeWidget(internal::Widget *remove) {
 			_positionsOutdated = true;
 		}
 	}
+	refreshHost();
 	showNextFromQueue();
 }
 
@@ -468,6 +606,10 @@ void Manager::doClearAllFast() {
 	_queuedNotifications.clear();
 	base::take(_notifications);
 	base::take(_hideAll);
+
+	// Whether cards are hosted depends on settings that may have just
+	// changed, so the next ones decide afresh.
+	base::take(_host);
 }
 
 void Manager::doClearFromTopic(not_null<Data::ForumTopic*> topic) {
@@ -585,12 +727,35 @@ Widget::Widget(
 	int shift,
 	Direction shiftDirection)
 : _manager(manager)
+, _hosted(NotifyHosted())
 , _startPosition(startPosition)
 , _direction(shiftDirection)
 , _shift(shift)
 , _shiftAnimation([=](crl::time now) {
 	return shiftAnimationCallback(now);
 }) {
+	if (_hosted) {
+		// A child of the shared window: what is outside the rounded corners
+		// is the window's own see-through background. Showing and hiding
+		// change the window region, which is only safe to redo once the
+		// card is done changing.
+		setParent(manager->ensureHost());
+		base::install_event_filter(this, [=](not_null<QEvent*> e) {
+			const auto type = e->type();
+			if (type == QEvent::ShowToParent || type == QEvent::HideToParent) {
+				Ui::PostponeCall(this, [=] {
+					_manager->refreshHost();
+				});
+			}
+			return base::EventFilterResult::Continue;
+		});
+		const auto effect = new QGraphicsOpacityEffect(this);
+		effect->setOpacity(0.);
+		setGraphicsEffect(effect);
+		_a_opacity.start([this] { opacityAnimationCallback(); }, 0., 1., st::notifyFastAnim);
+		return;
+	}
+
 	setWindowOpacity(0.);
 
 	setWindowFlags(Qt::WindowFlags(Qt::FramelessWindowHint)
@@ -601,11 +766,21 @@ Widget::Widget(
 	setAttribute(Qt::WA_MacAlwaysShowToolWindow);
 
 	// Rounded corners need the space outside them to stay see-through, which
-	// an opaque paint event would have filled in.
-	if (NotifyRadius() > 0) {
+	// an opaque paint event would have filled in - unless the corners are cut
+	// by a mask, which leaves nothing see-through to preserve.
+	const auto masked = NotifyMaskedCorners();
+	if (NotifyRadius() > 0 && !masked) {
 		setAttribute(Qt::WA_TranslucentBackground);
 	} else {
 		setAttribute(Qt::WA_OpaquePaintEvent);
+	}
+	if (masked) {
+		const auto radius = NotifyRadius();
+		sizeValue() | rpl::on_next([=](QSize size) {
+			if (!size.isEmpty()) {
+				setMask(NotifyCornersMask(size, radius));
+			}
+		}, lifetime());
 	}
 
 	Ui::Platform::InitOnTopPanel(this);
@@ -680,7 +855,26 @@ void Widget::hideAnimated(float64 duration, const anim::transition &func) {
 }
 
 void Widget::updateOpacity() {
-	setWindowOpacity(_a_opacity.value(_hiding ? 0. : 1.) * _manager->demoMasterOpacity());
+	const auto opacity = _a_opacity.value(_hiding ? 0. : 1.)
+		* _manager->demoMasterOpacity();
+	if (!_hosted) {
+		setWindowOpacity(opacity);
+		return;
+	}
+	// A child has no window opacity, it fades through an effect - only
+	// while it fades, as the effect renders it through an offscreen image.
+	if (opacity >= 1.) {
+		if (graphicsEffect()) {
+			setGraphicsEffect(nullptr);
+		}
+		return;
+	}
+	auto effect = static_cast<QGraphicsOpacityEffect*>(graphicsEffect());
+	if (!effect) {
+		effect = new QGraphicsOpacityEffect(this);
+		setGraphicsEffect(effect);
+	}
+	effect->setOpacity(opacity);
 }
 
 void Widget::changeShift(int top) {
@@ -702,8 +896,8 @@ void Widget::addToHeight(int add) {
 }
 
 void Widget::updateGeometry(int x, int y, int width, int height) {
-	move(x, y);
 	setFixedSize(width, height);
+	moveGlobal({ x, y });
 	update();
 }
 
@@ -713,7 +907,19 @@ void Widget::addToShift(int add) {
 }
 
 void Widget::moveByShift() {
-	move(computePosition(height()));
+	moveGlobal(computePosition(height()));
+}
+
+void Widget::moveGlobal(QPoint position) {
+	if (!_hosted) {
+		move(position);
+		return;
+	}
+	move(position - parentWidget()->pos());
+
+	// The region has to follow right away, or the leading edge of a card
+	// moving out of it would be cut off for a frame.
+	_manager->refreshHost();
 }
 
 QPoint Widget::computePosition(int height) const {
@@ -993,7 +1199,9 @@ void Notification::updateNotifyDisplay() {
 		size() * style::DevicePixelRatio(),
 		QImage::Format_ARGB32_Premultiplied);
 	img.setDevicePixelRatio(style::DevicePixelRatio());
-	img.fill(radius ? QColor(Qt::transparent) : st::notificationBg->c);
+	img.fill((radius && !NotifyMaskedCorners())
+		? QColor(Qt::transparent)
+		: st::notificationBg->c);
 
 	{
 		Painter p(&img);
@@ -1464,6 +1672,11 @@ void HideAllButton::paintEvent(QPaintEvent *e) {
 
 	const auto radius = NotifyRadius();
 	const auto bg = _mouseOver ? st::lightButtonBgOver : st::lightButtonBg;
+	if (NotifyMaskedCorners()) {
+		// The mask cuts the corners, so what is under them is never shown -
+		// but an opaque paint event has to cover the whole rect anyway.
+		p.fillRect(rect(), bg);
+	}
 	if (radius > 0) {
 		auto hq = PainterHighQualityEnabler(p);
 		const auto outer = QRectF(0, 0, width(), height());
