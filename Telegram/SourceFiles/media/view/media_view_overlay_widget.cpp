@@ -927,15 +927,15 @@ OverlayWidget::OverlayWidget()
 	}
 	_widget->setMouseTracking(true);
 
-	// Toggling between windowed and fullscreen changes the window flags,
+	// The registry reapplies on every handle change, which matters here:
+	// toggling between windowed and fullscreen changes the window flags,
 	// and that is a path where Qt recreates the native window, dropping
-	// everything set on the old one. Reapply on every handle change.
-	_window->winIdValue(
-	) | rpl::on_next([=](WId) {
-		Platform::SetWindowScreenshotProtection(
-			_window,
-			_screenshotProtected);
-	}, lifetime());
+	// everything set on the old one. It is also what keeps this and
+	// streamer mode from overwriting each other on the same window.
+	Core::App().screenshotProtection().addContentReason(
+		_window,
+		_screenshotProtected.value(),
+		lifetime());
 
 	_window->screenValue(
 	) | rpl::skip(1) | rpl::on_next([=](not_null<QScreen*> screen) {
@@ -6108,9 +6108,6 @@ bool OverlayWidget::contentNeedsScreenshotProtection() const {
 
 void OverlayWidget::refreshScreenshotProtection() {
 	_screenshotProtected = contentNeedsScreenshotProtection();
-	Platform::SetWindowScreenshotProtection(
-		_window,
-		_screenshotProtected);
 }
 
 void OverlayWidget::refreshSystemMediaControls() {

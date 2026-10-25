@@ -3,6 +3,11 @@
 - Merge Telegram Desktop 7.3.3.
 - Fix freezing on launch and while running once a lot of saved message
   history has piled up.
+- Streamer mode now hides the media viewer, notifications and every other
+  window the app opens, not just the main ones.
+- Streamer mode falls back to the in-app notifications, which can be hidden,
+  while it is on.
+- Streamer mode works on macOS.
 
 7.5.1 (09.09.26)
 

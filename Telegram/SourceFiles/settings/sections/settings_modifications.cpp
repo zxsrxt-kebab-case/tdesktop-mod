@@ -61,7 +61,6 @@ void BuildPrivacySection(SectionBuilder &builder) {
 			) | rpl::on_next([=](bool checked) {
 				Core::App().settings().setStreamerMode(checked);
 				Core::App().saveSettingsDelayed();
-				Core::App().refreshStreamerMode();
 			}, streamer->lifetime());
 		}
 	}

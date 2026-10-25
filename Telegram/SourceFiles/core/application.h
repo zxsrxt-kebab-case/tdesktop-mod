@@ -176,10 +176,6 @@ public:
 		not_null<QWidget*> widget) const;
 	[[nodiscard]] Window::Controller *activeWindow() const;
 	[[nodiscard]] Window::Controller *activePrimaryWindow() const;
-
-	// Applies the current streamer mode setting to all open windows. Lives
-	// here because enumerating windows is Application's business.
-	void refreshStreamerMode();
 	void setActivePrimaryWindow(not_null<Window::Controller*> window);
 	[[nodiscard]] Window::Controller *separateWindowFor(
 		Window::SeparateId id) const;

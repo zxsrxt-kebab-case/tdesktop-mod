@@ -10,7 +10,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "platform/platform_notifications_manager.h"
 #include "platform/platform_specific.h"
 #include "core/application.h"
-#include "core/streamer_mode.h"
 #include "core/ui_integration.h"
 #include "chat_helpers/emoji_suggestions_widget.h"
 #include "chat_helpers/message_field.h"
@@ -610,11 +609,6 @@ Widget::Widget(
 	}
 
 	Ui::Platform::InitOnTopPanel(this);
-	Core::StreamerMode::Apply(this);
-	Core::App().settings().streamerModeChanges(
-	) | rpl::on_next([=] {
-		Core::StreamerMode::Apply(this);
-	}, lifetime());
 
 	_a_opacity.start([this] { opacityAnimationCallback(); }, 0., 1., st::notifyFastAnim);
 }

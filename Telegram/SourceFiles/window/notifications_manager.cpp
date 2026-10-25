@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/platform/base_platform_info.h"
 #include "base/qt/qt_key_modifiers.h"
 #include "platform/platform_notifications_manager.h"
+#include "core/streamer_mode.h"
 #include "window/notifications_manager_default.h"
 #include "media/audio/media_audio_track.h"
 #include "media/audio/media_audio.h"
@@ -225,7 +226,8 @@ System::System()
 
 	rpl::merge(
 		OptionCustomNotification.changes(),
-		OptionGNotification.changes()
+		OptionGNotification.changes(),
+		Core::App().settings().streamerModeChanges() | rpl::to_empty
 	 ) | rpl::on_next([=] {
 		createManager();
 	}, lifetime());
@@ -245,7 +247,14 @@ void System::setManager(Fn<std::unique_ptr<Manager>()> create) {
 		}
 	});
 
-	if ((Core::App().settings().nativeNotifications()
+	// System notifications are drawn by the system, where nothing can keep
+	// them out of a screen capture, so streamer mode asks for the in-app
+	// ones instead - unless the platform offers nothing else.
+	const auto streamerNeedsOwn = Core::App().settings().streamerMode()
+		&& Core::StreamerMode::Supported()
+		&& !nativeEnforced();
+	if (!streamerNeedsOwn
+			&& (Core::App().settings().nativeNotifications()
 				|| nativeEnforced())
 			&& Platform::Notifications::Supported()) {
 		if (_manager->type() == ManagerType::Native) {

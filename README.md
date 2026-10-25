@@ -23,7 +23,7 @@ All of it lives in its own **Modifications** section in Settings. Ghost mode and
 
 **Ghost mode** — no read receipts, no typing status, no online status, no story views, no post view counts. Mentions and reactions are still reported to the server, otherwise their unread badge could never clear. A **Mark as read** entry in the chat context menu sends the receipt when you actually want to.
 
-**Streamer mode** — windows are excluded from screen capture. Windows only; X11 and Wayland have no equivalent.
+**Streamer mode** — every window the app opens is excluded from screen capture: the main window, the media viewer, notifications, menus. System notifications are drawn by the system itself, where nothing can hide them, so while the mode is on the in-app ones are used instead. Windows and macOS; X11 and Wayland have no equivalent.
 
 **Message history** — keeps what a message said before it was edited or deleted. Records are appended to one file encrypted under the same key as the rest of your data, so appending costs the same however much has piled up. Deleted messages stay on screen with a `deleted` badge and are recreated as local messages after a restart. Messages with a self-destruct timer are never stored.
 
@@ -58,7 +58,7 @@ From [AyuGram][ayugram], whose feature set this borrows from and reimplements ra
 
 - Restored deleted messages carry text only. Their media is not stored and is gone after a restart — the cache has no way to pin an entry, and that code lives in a submodule this fork cannot publish changes to.
 - Reposting a *deleted* message with media is unverified. The file is sent by reference, and that reference belongs to a message the server no longer has. It does work for protected channels, where the message is still alive.
-- Streamer mode does nothing outside Windows.
+- Streamer mode does nothing outside Windows and macOS.
 - Only Windows builds are published. The source builds on Linux and macOS the same way upstream does.
 
 ## Build instructions

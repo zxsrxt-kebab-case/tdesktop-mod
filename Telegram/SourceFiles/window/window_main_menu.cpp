@@ -804,7 +804,6 @@ void MainMenu::setupMenu() {
 		}) | rpl::on_next([=](bool value) {
 			Core::App().settings().setStreamerMode(value);
 			Core::App().saveSettingsDelayed();
-			Core::App().refreshStreamerMode();
 		}, streamer->lifetime());
 	}
 

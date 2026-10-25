@@ -7,16 +7,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-class QWidget;
-
 namespace Core::StreamerMode {
 
 // Hides the application's windows from screen capture and recording, so that
-// they do not show up in a stream. Only Windows can actually do this; on the
-// other platforms the calls are no-ops.
+// they do not show up in a stream. Windows and macOS can do this; X11 and
+// Wayland have no equivalent, so the setting is not offered there.
 [[nodiscard]] bool Supported();
 
-// Applies the current setting to one window, for windows created later.
-void Apply(QWidget *widget);
+// Starts following the setting. Called once, from Application::run().
+void Start();
 
 } // namespace Core::StreamerMode

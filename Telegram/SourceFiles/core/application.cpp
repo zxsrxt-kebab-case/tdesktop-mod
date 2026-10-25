@@ -316,6 +316,9 @@ void Application::run() {
 
 	startLocalStorage();
 
+	// Follows the setting from here on, for every window that opens.
+	StreamerMode::Start();
+
 	style::SetCustomFont(settings().customFontFamily());
 	style::internal::StartFonts();
 
@@ -624,12 +627,6 @@ void Application::enumerateWindows(Fn<void(
 	}
 }
 
-void Application::refreshStreamerMode() {
-	enumerateWindows([](not_null<Window::Controller*> window) {
-		StreamerMode::Apply(window->widget());
-	});
-}
-
 void Application::processCreatedWindow(
 		not_null<Window::Controller*> window) {
 	if (_savedWindows) {
@@ -637,10 +634,6 @@ void Application::processCreatedWindow(
 	}
 	window->openInMediaViewRequests(
 	) | rpl::start_to_stream(_openInMediaViewRequests, window->lifetime());
-
-	// A window created while streamer mode is on has to be excluded from
-	// capture too, not just the ones open when it was switched on.
-	StreamerMode::Apply(window->widget());
 }
 
 void Application::startMediaView() {
