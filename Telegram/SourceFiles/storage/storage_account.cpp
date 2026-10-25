@@ -1358,7 +1358,13 @@ void Account::messageVersionsRewriteDone() {
 		QFile::remove(path);
 		return;
 	}
-	for (const auto &record : base::take(_messageVersionsHeld)) {
+	const auto held = base::take(_messageVersionsHeld);
+	if (!_localKey) {
+		// The account was reset while the rewrite was running, so there is
+		// nothing left to write these under.
+		return;
+	}
+	for (const auto &record : held) {
 		AppendMessageVersionRecord(path, _localKey, record);
 	}
 }

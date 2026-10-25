@@ -359,8 +359,8 @@ void MessageVersions::startLoad() {
 	}
 	auto reader = _owner->session().local().messageVersionsReader();
 	if (!reader) {
-		// No local key yet, so there is nothing readable to wait for.
-		_loaded = true;
+		// No local key yet, so nothing can be read. Left unloaded, to be
+		// tried again by whatever asks next.
 		return;
 	}
 	_loading = true;
