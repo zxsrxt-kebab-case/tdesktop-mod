@@ -22,8 +22,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QDir>
 #include <QtCore/qmath.h>
 
-#include <qpa/qplatformscreen.h>
-
 namespace Test {
 
 bool App::nativeEventFilter(
@@ -181,14 +179,13 @@ int main(int argc, char *argv[]) {
 #endif // Q_OS_MAC
 
 	const auto ratio = app.devicePixelRatio();
-	const auto useRatio = std::clamp(qCeil(ratio), 1, 3);
+	const auto useRatio = std::clamp(int(std::ceil(ratio)), 1, 3);
 	style::SetDevicePixelRatio(useRatio);
 
 	const auto screen = App::primaryScreen();
 	const auto dpi = screen->logicalDotsPerInch();
-	const auto basePair = screen->handle()->logicalBaseDpi();
-	const auto baseMiddle = (basePair.first + basePair.second) * 0.5;
-	const auto screenExact = dpi / baseMiddle;
+	const auto baseDpi = style::BaseDpi();
+	const auto screenExact = dpi / baseDpi;
 	const auto screenScale = int(base::SafeRound(screenExact * 20)) * 5;
 	const auto chosen = std::clamp(
 		screenScale,

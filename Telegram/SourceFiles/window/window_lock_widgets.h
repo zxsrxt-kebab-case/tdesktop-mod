@@ -36,14 +36,19 @@ class SlideAnimation;
 enum class PasscodeAttempt : uchar {
 	Empty,
 	Flood,
-	Wrong,
-	Correct,
+	Busy,
+	Started,
 };
 
-// Bumps the bad tries counters on a wrong passcode. Does not unlock:
-// Core::App().unlockPasscode() destroys the main lock screen widget, so
-// the caller runs it as its own last statement.
-[[nodiscard]] PasscodeAttempt TryPasscode(const QString &passcode);
+// Empty and Flood are answered at once, before any derivation. Otherwise the
+// derivation runs on a worker and done runs on the main thread with the
+// verdict, after the bad tries counters were bumped for a wrong one. Busy
+// while any lock screen's attempt is in flight: nothing starts and done is
+// never invoked. Does not unlock: Core::App().unlockPasscode() destroys the
+// main lock screen widget, so the caller runs it as its own last statement.
+[[nodiscard]] PasscodeAttempt TryPasscode(
+	const QString &passcode,
+	Fn<void(bool correct)> done);
 
 class LockWidget : public Ui::RpWidget {
 public:
@@ -94,6 +99,7 @@ private:
 	void submit();
 	void submitSetup();
 	void error();
+	void setDeriving(bool deriving);
 
 	// True when the data is not protected yet, so a passcode has to be
 	// created here instead of an existing one being checked.

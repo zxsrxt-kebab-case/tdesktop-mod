@@ -117,7 +117,6 @@ public:
 	[[nodiscard]] Window::SeparateId windowId() const;
 	[[nodiscard]] bool isPrimary() const;
 	[[nodiscard]] bool isMainSectionShown() const;
-	[[nodiscard]] bool isThirdSectionShown() const;
 
 	[[nodiscard]] Dialogs::RowDescriptor resolveChatNext(
 		Dialogs::RowDescriptor from) const;
@@ -129,7 +128,7 @@ public:
 	void showAnimated(QPixmap oldContentCache, bool back = false);
 
 	void activate();
-	void handleStartFiles(QStringList interprets, QStringList paths);
+	void handleStartFiles(QStringList paths);
 
 	void windowShown();
 
@@ -283,7 +282,6 @@ private:
 		Window::SectionWidget *section,
 		bool fromBottom);
 	Window::SectionSlideParams prepareHistoryAnimation(PeerId historyPeerId);
-	Window::SectionSlideParams prepareDialogsAnimation();
 
 	bool saveSectionInStack(
 		const SectionShow &params,

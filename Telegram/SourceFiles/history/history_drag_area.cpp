@@ -57,7 +57,9 @@ constexpr auto kDragAreaEvents = {
 		}
 	}
 	if (!modifiers) {
-		return state;
+		return (state == DragState::FilesArchive)
+			? DragState::Files
+			: state;
 	}
 	return (state == DragState::PhotoFiles)
 		? DragState::PhotoFilesArchive
@@ -68,7 +70,9 @@ constexpr auto kDragAreaEvents = {
 
 [[nodiscard]] bool IsPromotedToArchive(Storage::MimeDataState state) {
 	using DragState = Storage::MimeDataState;
-	return (state == DragState::PhotoFilesArchive)
+	return (state == DragState::FilesArchive)
+		|| (state == DragState::FilesArchiveOnly)
+		|| (state == DragState::PhotoFilesArchive)
 		|| (state == DragState::MediaFilesArchive);
 }
 
@@ -189,6 +193,7 @@ DragArea::Areas DragArea::SetupDragAreaToContainer(
 		case DragState::FilesArchiveOnly:
 		case DragState::FolderArchiveOnly:
 		case DragState::Image:
+		case DragState::Media:
 			resizeToFull(attachDragPhoto);
 			moveToTop(attachDragPhoto);
 		break;
@@ -307,6 +312,15 @@ DragArea::Areas DragArea::SetupDragAreaToContainer(
 		case DragState::Image:
 			attachDragPhoto->setText(
 				tr::lng_drag_images_here(tr::now),
+				hideSubtext
+					? QString()
+					: tr::lng_drag_to_send_quick(tr::now));
+			attachDragDocument->hideFast();
+			attachDragPhoto->otherEnter();
+		break;
+		case DragState::Media:
+			attachDragPhoto->setText(
+				tr::lng_drag_media_here(tr::now),
 				hideSubtext
 					? QString()
 					: tr::lng_drag_to_send_quick(tr::now));

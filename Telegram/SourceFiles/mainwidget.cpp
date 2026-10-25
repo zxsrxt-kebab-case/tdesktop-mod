@@ -95,7 +95,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session_settings.h"
 #include "main/main_app_config.h"
 #include "settings/sections/settings_premium.h"
-#include "support/support_helper.h"
 #include "storage/storage_user_photos.h"
 #include "styles/style_dialogs.h"
 #include "styles/style_chat.h"
@@ -360,6 +359,13 @@ MainWidget::MainWidget(
 		updateControlsGeometry();
 	}, lifetime());
 
+	Core::App().settings().thirdSectionInfoEnabledValue(
+	) | rpl::skip(1) | rpl::on_next([=] {
+		crl::on_main(this, [=] {
+			updateColumnLayout();
+		});
+	}, lifetime());
+
 	session().changes().historyUpdates(
 		Data::HistoryUpdate::Flag::MessageSent
 	) | rpl::on_next([=](const Data::HistoryUpdate &update) {
@@ -385,7 +391,6 @@ MainWidget::MainWidget(
 		controller->hideLayer();
 	}, lifetime());
 
-	// MSVC BUG + REGRESSION rpl::mappers::tuple :(
 	using namespace rpl::mappers;
 	_controller->activeChatValue(
 	) | rpl::map([](Dialogs::Key key) {
@@ -397,14 +402,9 @@ MainWidget::MainWidget(
 				Data::TabbedPanelSendRestrictions())
 			: peer
 			? Data::CanSendAnyOfValue(
-
 				peer, Data::TabbedPanelSendRestrictions())
 			: rpl::single(false);
-		return std::move(
-			canWrite
-		) | rpl::map([=](bool can) {
-			return std::make_tuple(key, can);
-		});
+		return std::move(canWrite) | rpl::map(tuple(key, _1));
 	}) | rpl::flatten_latest(
 	) | rpl::on_next([this](Dialogs::Key key, bool canWrite) {
 		updateThirdColumnToCurrentChat(key, canWrite);
@@ -1983,10 +1983,6 @@ Window::SectionSlideParams MainWidget::prepareHistoryAnimation(PeerId historyPee
 	return prepareShowAnimation(historyPeerId != 0, false);
 }
 
-Window::SectionSlideParams MainWidget::prepareDialogsAnimation() {
-	return prepareShowAnimation(false, false);
-}
-
 void MainWidget::showNewSection(
 		std::shared_ptr<Window::SectionMemento> memento,
 		const SectionShow &params) {
@@ -2164,10 +2160,6 @@ bool MainWidget::isPrimary() const {
 
 bool MainWidget::isMainSectionShown() const {
 	return _mainSection || _history->peer();
-}
-
-bool MainWidget::isThirdSectionShown() const {
-	return _thirdSection != nullptr;
 }
 
 Dialogs::RowDescriptor MainWidget::resolveChatNext(
@@ -2715,7 +2707,7 @@ void MainWidget::updateControlsGeometry() {
 	}
 	const auto mainSectionTop = getMainSectionTop();
 	auto dialogsWidth = _dialogs
-		? qRound(_a_dialogsWidth.value(_dialogsWidth))
+		? int(base::SafeRound(_a_dialogsWidth.value(_dialogsWidth)))
 		: isOneColumn()
 		? width()
 		: 0;
@@ -3247,17 +3239,7 @@ void MainWidget::activate() {
 	_controller->widget()->fixOrder();
 }
 
-void MainWidget::handleStartFiles(
-		QStringList interprets,
-		QStringList paths) {
-	for (const auto &interpret : interprets) {
-		const auto error = Support::InterpretSendPath(
-			_controller,
-			interpret);
-		if (!error.isEmpty()) {
-			_controller->show(Ui::MakeInformBox(error));
-		}
-	}
+void MainWidget::handleStartFiles(QStringList paths) {
 	if (!paths.isEmpty()) {
 		const auto chosen = [=](not_null<Data::Thread*> thread) {
 			return sendPaths(thread, paths);
