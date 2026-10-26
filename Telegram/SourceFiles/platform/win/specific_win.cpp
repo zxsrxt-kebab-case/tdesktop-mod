@@ -539,9 +539,13 @@ void SetWindowScreenshotProtection(not_null<QWidget*> window, bool enabled) {
 		return;
 	}
 	const auto hwnd = reinterpret_cast<HWND>(handle);
-	if (!enabled) {
-		SetWindowDisplayAffinity(hwnd, WDA_NONE);
-	} else if (!SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)) {
+
+	// Once an excluded window has been hidden, a capture shows it as a black
+	// box after it is shown again, and setting the same value once more
+	// changes nothing - it only takes after being dropped. Hence the reset,
+	// and the protection being applied again on every show.
+	SetWindowDisplayAffinity(hwnd, WDA_NONE);
+	if (enabled && !SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)) {
 		// A window whose translucency comes from UpdateLayeredWindow is
 		// refused outright, with ERROR_NOT_ENOUGH_MEMORY. One composed
 		// through the GPU is accepted, translucent or not.

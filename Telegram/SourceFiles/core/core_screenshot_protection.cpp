@@ -44,9 +44,13 @@ void ScreenshotProtection::addReason(
 		_reasons[id].active = value;
 		refresh();
 	}), lifetime);
+	// A new native window starts unprotected, and one shown again after
+	// being hidden may have lost what it had. Show comes before the window
+	// is on screen, so not a frame of it goes out unprotected.
 	base::install_event_filter(window, crl::guard(this, [=](
 			not_null<QEvent*> event) {
-		if (event->type() == QEvent::WinIdChange) {
+		const auto type = event->type();
+		if (type == QEvent::WinIdChange || type == QEvent::Show) {
 			apply(window, true);
 		}
 		return base::EventFilterResult::Continue;

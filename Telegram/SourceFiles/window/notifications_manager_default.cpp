@@ -96,13 +96,17 @@ namespace {
 // Windows does keep such a window out. One window for the whole column, not
 // one per card, because each of those would bring its own device.
 [[nodiscard]] bool NotifyHosted() {
+#ifdef Q_OS_WIN
 	return NotifyStreamerCorners() && Ui::GL::WidgetsRhiSupported();
+#else // Q_OS_WIN
+	return false;
+#endif // Q_OS_WIN
 }
 
 // Without the GPU path the corners are cut by a window mask instead: the
 // window stays opaque and hideable, at the price of a hard edge.
 [[nodiscard]] bool NotifyMaskedCorners() {
-	return NotifyStreamerCorners() && !Ui::GL::WidgetsRhiSupported();
+	return NotifyStreamerCorners() && !NotifyHosted();
 }
 
 [[nodiscard]] QRegion NotifyCornersMask(QSize size, int radius) {
@@ -204,7 +208,6 @@ Host::Host() {
 		| Qt::BypassWindowManagerHint
 		| Qt::NoDropShadowWindowHint
 		| Qt::Tool);
-	setAttribute(Qt::WA_MacAlwaysShowToolWindow);
 	setAttribute(Qt::WA_NoSystemBackground);
 	setAttribute(Qt::WA_TranslucentBackground);
 	setAttribute(Qt::WA_ShowWithoutActivating);
